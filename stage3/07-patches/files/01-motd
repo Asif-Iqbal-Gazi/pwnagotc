@@ -14,7 +14,7 @@ echo
 echo "    All the configuration options can be found in /etc/pwnagotchi/default.toml,"
 echo "    but don't change this file because I will recreate it every time I'm restarted!"
 echo
-echo "    I use oPwnGrid as my main API, you can check stats at https://opwngrid.xyz"
+echo "    Project: https://github.com/Asif-Iqbal-Gazi/pwnagotc"
 echo
 echo "    I'm managed by systemd. Here are some basic commands."
 echo

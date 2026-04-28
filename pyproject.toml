@@ -16,12 +16,12 @@ dependencies = [
 requires-python = ">=3.11"
 authors = [
   {name = "Evilsocket", email = "evilsocket@gmail.com"},
-  {name = "Jayofelony", email = "oudshoorn.jeroen@gmail.com"}
+  {name = "Asif-Iqbal-Gazi", email = "asif.iqbal.gazi@gmail.com"}
 ]
 maintainers = [
-  {name = "Jayofelony", email = "oudshoorn.jeroen@gmail.com"}
+  {name = "Asif-Iqbal-Gazi", email = "asif.iqbal.gazi@gmail.com"}
 ]
-description = "(⌐■_■) - WiFi intelligence agent powered by WiFiCapC."
+description = "(⌐■_■) - WiFi handshake hunter powered by WiFiCapC."
 readme = "README.md"
 license = {file = "LICENSE.md"}
 classifiers = [
@@ -39,12 +39,11 @@ include = ["pwnagotchi"]
 exclude = ["stage3"]
 
 [project.urls]
-Homepage = "https://pwnagotchi.org/"
-Documentation = "https://github.com/jayofelony/pwnagotchi/wiki"
-Repository = "https://github.com/jayofelony/pwnagotchi.git"
-GitHub = "https://github.com/jayofelony/pwnagotchi"
-Issues = "https://github.com/jayofelony/pwnagotchi/issues"
-Download = "https://github.com/jayofelony/pwnagotchi/releases/latest"
+Homepage = "https://github.com/Asif-Iqbal-Gazi/pwnagotc"
+Repository = "https://github.com/Asif-Iqbal-Gazi/pwnagotc.git"
+GitHub = "https://github.com/Asif-Iqbal-Gazi/pwnagotc"
+Issues = "https://github.com/Asif-Iqbal-Gazi/pwnagotc/issues"
+Download = "https://github.com/Asif-Iqbal-Gazi/pwnagotc/releases/latest"
 
 [project.scripts]
 pwnagotchi = "pwnagotchi.cli:pwnagotchi_cli"

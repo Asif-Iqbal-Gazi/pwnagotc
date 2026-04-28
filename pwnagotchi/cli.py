@@ -135,13 +135,13 @@ def pwnagotchi_cli():
         sys.exit(0)
 
     if args.donate:
-        print("Donations can be made @ \n "
-              "https://github.com/sponsors/jayofelony \n\n"
+        print("Support the project @ \n "
+              "https://github.com/Asif-Iqbal-Gazi/pwnagotc \n\n"
               "But only if you really want to!")
         sys.exit(0)
 
     if args.check_update:
-        resp = requests.get("https://api.github.com/repos/jayofelony/pwnagotchi/releases/latest")
+        resp = requests.get("https://api.github.com/repos/Asif-Iqbal-Gazi/pwnagotc/releases/latest")
         latest = resp.json()
         latest_ver = latest['tag_name'].replace('v', '')
 

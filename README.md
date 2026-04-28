@@ -1,42 +1,114 @@
-# Pwnagotchi
-This is the main source for all forks:
-- RPiZeroW (32bit)
-- RPiZero2W, RPi3, RPi4, RPi5 (64bit)
+# Pwnagotchi — WiFiCapC Edition
 
-**For installation docs check out the [wiki](https://github.com/jayofelony/pwnagotchi/wiki)!**
+> (⌐■_■) passive sniffing and active provocation of WPA handshake material, no bettercap required.
 
-If you want to sponsor this project you can use GH Sponsor or cryptocurrency:
+## Overview
 
-[GH Sponsor](https://github.com/sponsors/jayofelony)
+This fork replaces the original bettercap + pwngrid stack with **[WiFiCapC](https://github.com/Asif-Iqbal-Gazi/WiFiCapC)** — a lean native C daemon (~5 KLoC) that owns the entire Wi-Fi control plane over a Unix socket IPC. Machine learning and mesh networking have been removed entirely; behaviour is driven by rule-based state machines.
 
-Or send some ethereum: 0x33ceC4Abe80fDE460a924d596d4dE31Bc0767bb6
+**Target hardware:** Raspberry Pi Zero 2 W (aarch64)
 
-**Proudly partnering with [PiSugar](https://www.pisugar.com)!!**
+## What changed from upstream
 
----
+| Upstream | This fork |
+|---|---|
+| bettercap (Go) | WiFiCapC (C, ~5 KLoC) |
+| pwngrid mesh | removed |
+| Go + Rust toolchain in image | removed |
+| `.pcap` capture | `.22000` (hashcat-compatible) |
+| `bettercap.service` + `pwngrid-peer.service` | `wificapc.service` |
 
-[Pwnagotchi](https://pwnagotchi.org/) is a Raspberry Pi leveraging [bettercap](https://www.bettercap.org/) that survives from its surrounding Wi-Fi environment to maximize the crackable WPA key material it captures (either passively, or by performing authentication and association attacks). This material is collected as PCAP files containing any form of handshake supported by [hashcat](https://hashcat.net/hashcat/), including [PMKIDs](https://www.evilsocket.net/2019/02/13/Pwning-WiFi-networks-with-bettercap-and-the-PMKID-client-less-attack/), 
-full and half WPA handshakes.
+## Architecture
 
-![ui](https://i.imgur.com/X68GXrn.png)
+```
+wificapc (C daemon)
+  │  AF_UNIX /run/wificapc.sock  (line-delimited JSON)
+  └──► pwnagotchi (Python)
+         │  plugins, UI, epoch logic
+         └──► e-ink / LCD display
+```
 
-The "old" Pwnagotchi used to have AI to help it learn from its environment, but since then AI seemed to destabilize the Wi-Fi firmware. So I have chosen to remove the AI completely to give the Pwnagotchi more up-time and longer battery life when taking it on a walk.
+Pwnagotchi connects to wificapc at boot, sends `iface_set → monitor_on → recon_start → hop_start`, then listens for `ap.new`, `sta.new`, `handshake.done` events and updates the UI / mood accordingly. If wificapc restarts, the Python side reconnects and re-initialises automatically.
 
-Multiple units within close physical proximity can "talk" to each other, advertising their presence to each other by broadcasting custom information elements using a parasite protocol [@evilsocket](https://x.com/evilsocket) built on top of the existing dot11 standard.
+## Building
 
-## Documentation
+Requirements: x86-64 Linux host, ~20 GB free disk, Docker or native pi-gen dependencies.
 
-https://github.com/jayofelony/pwnagotchi/wiki 
-https://pwnagotchi.org
+```bash
+# Install pi-gen build deps
+sudo apt-get install -y make git quilt qemu-user-static debootstrap zerofree \
+  libarchive-tools curl pigz arch-test gcc-aarch64-linux-gnu
 
-## Links
+# Build 64-bit image
+cd pwnagotc
+make 64bit
+```
 
-| &nbsp;    | Official Links                                           |
-|-----------|----------------------------------------------------------|
-| Website   | [pwnagotchi.org](https://pwnagotchi.org/)                  |
-| Chat      | [discord](https://discord.gg/PGgnzFbz4M) |
-| Subreddit | [r/pwnagotchi](https://www.reddit.com/r/pwnagotchi/)     |
+The finished image lands in `~/images/`. Flash it with `dd` or Raspberry Pi Imager.
+
+### Build stages
+
+| Stage | What it does |
+|---|---|
+| `01-pwn-packages` | APT packages incl. `libnl-genl-3-dev`, `libpcap-dev` |
+| `02-libpcap` | Builds libpcap from source |
+| `03-wificapc` | Clones & builds WiFiCapC |
+| `04-nexmon` | Nexmon firmware patch for monitor mode |
+| `05-install-pwnagotchi` | Installs pwnagotchi into `/opt/.pwn` venv |
+| `06-hcxtools` | Builds hcxtools for `.22000` conversion |
+| `07-patches` | systemd units, launchers, config |
+
+## First boot
+
+The device presents as a USB Ethernet gadget at `10.0.0.2`. Connect and open the web UI at `http://10.0.0.2:8080`.
+
+Configuration: `/etc/pwnagotchi/config.toml`  
+Custom plugins: `/etc/pwnagotchi/custom-plugins/`  
+Handshakes: `/etc/pwnagotchi/handshakes/`
+
+Platform connection scripts are in `scripts/`:
+
+```
+scripts/linux_connection_share.sh
+scripts/macos_connection_share.sh
+scripts/win_connection_share.ps1
+```
+
+## Configuration
+
+`config.toml` is merged on top of `defaults.toml`. Key wificapc section:
+
+```toml
+[wificapc]
+socket = "/run/wificapc.sock"
+handshakes = "/etc/pwnagotchi/handshakes"
+hop_interval_ms = 250
+```
+
+## Plugins
+
+Default plugins retained from upstream (GPS, wpa-sec upload, wigle, auto-backup, auto-update, etc.). bettercap-specific plugins have been updated or removed.
+
+Custom plugins go in `/etc/pwnagotchi/custom-plugins/` and are enabled in `config.toml`:
+
+```toml
+[main.custom_plugins]
+enabled = true
+```
+
+## Systemd services
+
+```
+wificapc.service   — WiFi capture daemon (starts first)
+pwnagotchi.service — Python agent (After=wificapc.service)
+```
+
+```bash
+sudo systemctl status wificapc
+sudo systemctl status pwnagotchi
+sudo journalctl -fu pwnagotchi
+```
 
 ## License
 
-`pwnagotchi` created by [@evilsocket](https://x.com/evilsocket) and updated by [us](https://github.com/jayofelony/pwnagotchi/graphs/contributors). It is released under the GPL3 license.
+GPL-3.0 — see [LICENSE.md](LICENSE.md)
