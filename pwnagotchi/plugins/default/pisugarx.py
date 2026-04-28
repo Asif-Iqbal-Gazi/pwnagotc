@@ -532,7 +532,7 @@ class PiSugarServer:
 
 
 class PiSugar(plugins.Plugin):
-    __author__ = "jayofelony"
+    __author__ = "Asif-Iqbal-Gazi"
     __version__ = "1.2"
     __license__ = "GPL3"
     __description__ = (

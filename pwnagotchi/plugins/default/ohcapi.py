@@ -121,40 +121,37 @@ class ohcapi(plugins.Plugin):
             processed_stations = self.report.data_field_or('processed_stations', default=[])
             handshake_dir = config['wificapc']['handshakes']
 
-            # Find .pcap files
+            # Find .22000 files written directly by wificapc
             handshake_filenames = os.listdir(handshake_dir)
             handshake_paths = [os.path.join(handshake_dir, filename)
-                                for filename in handshake_filenames if filename.endswith('.pcap')]
+                                for filename in handshake_filenames if filename.endswith('.22000')]
 
-            # If the corresponding .22000 file exists, skip re-upload
-            handshake_paths = [p for p in handshake_paths if not os.path.exists(p.replace('.pcap', '.22000'))]
-
-            # Filter out already reported and skipped .pcap files
+            # Filter out already reported and skipped files
             handshake_new = set(handshake_paths) - set(reported) - set(self.skip)
 
             if handshake_new:
-                logging.info(f"OHC NewAPI: Processing {len(handshake_new)} new PCAP handshakes.")
+                logging.info(f"OHC NewAPI: Processing {len(handshake_new)} new .22000 handshakes.")
 
                 all_hashes = []
                 successfully_extracted = []
                 essid_bssid_map = {}
 
-                for idx, pcap_path in enumerate(handshake_new):
-                    hashes = self._extract_hashes_from_handshake(pcap_path)
+                for idx, hs_path in enumerate(handshake_new):
+                    hashes = self._extract_hashes_from_handshake(hs_path)
                     if hashes:
                         # Extract ESSID and BSSID from the first hash line
                         essid, bssid = self._extract_essid_bssid_from_hash(hashes[0])
                         if (essid, bssid) in processed_stations:
-                            logging.debug(f"OHC NewAPI: Station {essid}/{bssid} already processed, skipping {pcap_path}.")
-                            self.skip.append(pcap_path)
+                            logging.debug(f"OHC NewAPI: Station {essid}/{bssid} already processed, skipping {hs_path}.")
+                            self.skip.append(hs_path)
                             continue
 
                         all_hashes.extend(hashes)
-                        successfully_extracted.append(pcap_path)
-                        essid_bssid_map[pcap_path] = (essid, bssid)
+                        successfully_extracted.append(hs_path)
+                        essid_bssid_map[hs_path] = (essid, bssid)
                     else:
-                        logging.debug(f"OHC NewAPI: No hashes extracted from {pcap_path}, skipping.")
-                        self.skip.append(pcap_path)
+                        logging.debug(f"OHC NewAPI: No hashes extracted from {hs_path}, skipping.")
+                        self.skip.append(hs_path)
 
                 # Now upload all extracted hashes
                 if all_hashes:
@@ -168,16 +165,16 @@ class ohcapi(plugins.Plugin):
 
                     if upload_success:
                         # Mark all successfully extracted pcaps as reported
-                        for pcap_path in successfully_extracted:
-                            reported.append(pcap_path)
-                            essid, bssid = essid_bssid_map[pcap_path]
+                        for hs_path in successfully_extracted:
+                            reported.append(hs_path)
+                            essid, bssid = essid_bssid_map[hs_path]
                             processed_stations.append((essid, bssid))
                         self.report.update(data={'reported': reported, 'processed_stations': processed_stations})
                         logging.debug("OHC NewAPI: Successfully reported all new handshakes.")
                     else:
                         # Upload failed, skip these pcaps for future attempts
-                        for pcap_path in successfully_extracted:
-                            self.skip.append(pcap_path)
+                        for hs_path in successfully_extracted:
+                            self.skip.append(hs_path)
                         logging.debug("OHC NewAPI: Failed to upload tasks, added to skip list.")
                 else:
                     logging.debug("OHC NewAPI: No hashes were extracted from the new pcaps. Nothing to upload.")
@@ -212,18 +209,12 @@ class ohcapi(plugins.Plugin):
             logging.debug(f"OHC NewAPI: Exception while adding tasks -> {e}")
             return False
 
-    def _extract_hashes_from_handshake(self, pcap_path):
+    def _extract_hashes_from_handshake(self, hs_path):
         hashes = []
-        hcxpcapngtool = '/usr/bin/hcxpcapngtool'
-        hccapx_path = pcap_path.replace('.pcap', '.22000')
-        hcxpcapngtool_cmd = f"{hcxpcapngtool} -o {hccapx_path} {pcap_path}"
-        os.popen(hcxpcapngtool_cmd).read()
-        if os.path.exists(hccapx_path) and os.path.getsize(hccapx_path) > 0:
-            logging.debug(f"OHC NewAPI: Extracted hashes from {pcap_path}")
-            with open(hccapx_path, 'r') as hccapx_file:
-                hashes = hccapx_file.readlines()
+        if os.path.exists(hs_path) and os.path.getsize(hs_path) > 0:
+            logging.debug(f"OHC NewAPI: Reading hashes from {hs_path}")
+            with open(hs_path, 'r') as f:
+                hashes = f.readlines()
         else:
-            logging.debug(f"OHC NewAPI: Failed to extract hashes from {pcap_path}")
-            if os.path.exists(hccapx_path):
-                os.remove(hccapx_path)
+            logging.debug(f"OHC NewAPI: Empty or missing .22000 file: {hs_path}")
         return hashes

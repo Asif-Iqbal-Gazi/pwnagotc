@@ -17,7 +17,7 @@ import pwnagotchi.ui.fonts as fonts
 
 
 class FixServices(plugins.Plugin):
-    __author__ = 'jayofelony'
+    __author__ = 'Asif-Iqbal-Gazi'
     __version__ = '1.0.1'
     __license__ = 'GPL3'
     __description__ = 'Fix blindness, firmware crashes and brain not being loaded. Auto-disables for external WiFi adapters.'
@@ -243,42 +243,18 @@ class FixServices(plugins.Plugin):
             else:
                 display = None
 
-            # main divergence from WATCHDOG starts here
-            #
-            # instead of rebooting, and losing all that energy loading up the AI
-            #    pause wifi.recon, close wlan0mon, reload the brcmfmac kernel module
-            #    then recreate wlan0mon, ..., and restart wifi.recon
-
-            # Turn it off
+            # close wlan0mon, reload the brcmfmac kernel module, then recreate wlan0mon
 
             # attempt a sanity check. does wlan0mon exist?
-            # is it up?
             try:
                 cmd_output = subprocess.check_output("ip link show wlan0mon", shell=True)
                 logging.debug("[Fix_Services ip link show wlan0mon]: %s" % repr(cmd_output))
                 if ",UP," in str(cmd_output):
                     logging.debug("wlan0mon is up. Skip reset?")
-                    # not reliable, so don't skip just yet
-                    # print("wlan0mon is up. Skipping reset.")
-                    # self.isReloadingMon = False
-                    # return
             except Exception as err:
                 logging.error("[Fix_Services ip link show wlan0mon]: %s" % repr(err))
 
-            try:
-                result = connection.run("wifi.recon off")
-                if "success" in result:
-                    self.logPrintView("info", "[Fix_Services] wifi.recon off: %s!" % repr(result),
-                                      display, {"status": "Wifi recon paused!", "face": faces.COOL})
-                    time.sleep(2)
-                else:
-                    self.logPrintView("warning", "[Fix_Services] wifi.recon off: FAILED: %s" % repr(result),
-                                      display, {"status": "Recon was busted (probably)",
-                                                "face": random.choice((faces.BROKEN, faces.DEBUG))})
-            except Exception as err:
-                logging.error("[Fix_Services wifi.recon off] error  %s" % (repr(err)))
-
-            logging.debug("[Fix_Services] recon paused. Now trying wlan0mon reload")
+            logging.debug("[Fix_Services] trying wlan0mon reload")
 
             try:
                 cmd_output = subprocess.check_output("monstop", shell=True)
@@ -314,19 +290,7 @@ class FixServices(plugins.Plugin):
                             cmd_output = subprocess.check_output("monstart", shell=True)
                             self.logPrintView("info", "[Fix_Services interface add wlan0mon worked #%s: %s"
                                               % (tries, cmd_output))
-                            try:
-                                # try accessing mon0 in bettercap
-                                result = connection.run("set wifi.interface wlan0mon")
-                                if "success" in result:
-                                    logging.debug("[Fix_Services set wifi.interface wlan0mon worked!")
-                                    # stop looping and get back to recon
-                                    break
-                                else:
-                                    logging.debug(
-                                        "[Fix_Services set wifi.interfaceface wlan0mon] failed? %s" % repr(result))
-                            except Exception as err:
-                                logging.debug(
-                                    "[Fix_Services set wifi.interface wlan0mon] except: %s" % repr(err))
+                            break
                         except Exception as cerr:  #
                             if not display:
                                 print("failed loading wlan0mon attempt #%s: %s" % (tries, repr(cerr)))
@@ -362,29 +326,15 @@ class FixServices(plugins.Plugin):
             else:
                 self.LASTTRY = time.time()
 
-            time.sleep(8 + tries * 2)  # give it a bit before restarting recon in bettercap
+            time.sleep(8 + tries * 2)
             self.isReloadingMon = False
 
             logging.debug("[Fix_Services] re-enable recon")
-            try:
-                result = connection.run("wifi.clear; wifi.recon on")
-
-                if "success" in result:  # and result["success"] is True:
-                    if display:
-                        display.update(force=True, new_data={"status": "I can see again! (probably)",
-                                                             "face": faces.HAPPY})
-                    else:
-                        print("I can see again")
-                    logging.debug("[Fix_Services] wifi.recon on")
-                    self.LASTTRY = time.time() + 120  # 2-minute pause until next time.
-                else:
-                    logging.error("[Fix_Services] wifi.recon did not start up")
-                    self.LASTTRY = time.time() - 300  # failed, so try again ASAP
-                    self.isReloadingMon = False
-
-            except Exception as err:
-                logging.error("[Fix_Services wifi.recon on] %s" % repr(err))
-                pwnagotchi.reboot()
+            self._restart_wificapc_recon(connection)
+            if display:
+                display.update(force=True, new_data={"status": "I can see again! (probably)",
+                                                     "face": faces.HAPPY})
+            self.LASTTRY = time.time() + 120
 
     # called to setup the ui elements
     def on_ui_setup(self, ui):

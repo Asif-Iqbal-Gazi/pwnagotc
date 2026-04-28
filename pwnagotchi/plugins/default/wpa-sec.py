@@ -15,8 +15,7 @@ import pwnagotchi.ui.fonts as fonts
 
 class WpaSec(plugins.Plugin):
     __author__ = '33197631+dadav@users.noreply.github.com'
-    __editor__ = 'jayofelony'
-    __version__ = '2.1.2'
+    __version__ = '2.2.0'
     __license__ = 'GPL3'
     __description__ = 'This plugin automatically uploads handshakes to https://wpa-sec.stanev.org'
     
@@ -68,10 +67,14 @@ class WpaSec(plugins.Plugin):
         
     def on_handshake(self, agent, filename, access_point, client_station):
         config = agent.config()
-        
+
         if not remove_whitelisted([filename], config['main']['whitelist']):
             return
-        
+
+        # prefer the .22000 file written by wificapc; fall back to .pcap
+        path_22000 = filename.replace('.pcap', '.22000')
+        upload_path = path_22000 if os.path.exists(path_22000) else filename
+
         db_conn = sqlite3.connect('/etc/pwnagotchi/.wpa_sec_db')
         with db_conn:
             db_conn.execute('''
@@ -79,7 +82,7 @@ class WpaSec(plugins.Plugin):
                 VALUES (?, ?)
                 ON CONFLICT(path) DO UPDATE SET status = excluded.status
                 WHERE handshakes.status = ?
-            ''', (filename, self.Status.TOUPLOAD.value, self.Status.INVALID.value))
+            ''', (upload_path, self.Status.TOUPLOAD.value, self.Status.INVALID.value))
         db_conn.close()
 
     def on_internet_available(self, agent):
@@ -221,10 +224,13 @@ class WpaSec(plugins.Plugin):
                     bssid,station_mac,ssid,password = line.split(":")
                     if password:
                         handshake_filename = re.sub(r'[^a-zA-Z0-9]', '', ssid) + '_' + bssid
-                        pcap_path = os.path.join(handshake_dir, handshake_filename+'.pcap')
-                        pcap_cracked_path = os.path.join(handshake_dir, handshake_filename+'.pcap.cracked')
-                        if os.path.exists(pcap_path) and not os.path.exists(pcap_cracked_path):
-                            with open(pcap_cracked_path, 'w') as f:
+                        # match against .22000 if present, otherwise .pcap
+                        hs_22000 = os.path.join(handshake_dir, handshake_filename + '.22000')
+                        hs_pcap  = os.path.join(handshake_dir, handshake_filename + '.pcap')
+                        hs_path  = hs_22000 if os.path.exists(hs_22000) else hs_pcap
+                        cracked_path = hs_path + '.cracked'
+                        if os.path.exists(hs_path) and not os.path.exists(cracked_path):
+                            with open(cracked_path, 'w') as f:
                                 f.write(password)
                 except Exception:
                     logging.exception(f"WPA_SEC: Exception writing cracked single file, parsing line {line}.")

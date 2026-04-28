@@ -64,7 +64,7 @@ class WigleStatistics:
 
 
 class Wigle(plugins.Plugin):
-    __author__ = "Dadav and updated by Jayofelony and fmatray"
+    __author__ = "Dadav and fmatray"
     __version__ = "4.1.0"
     __license__ = "GPL3"
     __description__ = "This plugin automatically uploads collected WiFi to wigle.net"
