@@ -41,6 +41,10 @@ install -v -m 755 files/user-data "${ROOTFS_DIR}/boot/firmware/user-data"
 
 # Remove unnecessary files, if they exist
 echo -e "\e[32m### Removing unnecessary files ###\e[0m"
+for svc in bettercap.service pwngrid-peer.service; do
+    rm -f "${ROOTFS_DIR}/etc/systemd/system/${svc}"
+    rm -f "${ROOTFS_DIR}/etc/systemd/system/multi-user.target.wants/${svc}"
+done
 if [ -f "${ROOTFS_DIR}/etc/motd" ]; then
     rm "${ROOTFS_DIR}/etc/motd"
 fi
