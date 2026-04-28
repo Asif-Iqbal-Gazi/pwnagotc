@@ -1,5 +1,5 @@
 [main]
-name = "pwnagotchi"
+name = "PwnaGotC"
 lang = "en"
 iface = "wlan0mon"
 mon_start_cmd = "/usr/bin/monstart"
@@ -75,12 +75,6 @@ orientation = "horizontal"
 enabled = false
 api_key = "sk_your_api_key_here"
 receive_email = "yes"
-
-[main.plugins.pwndroid]
-enabled = false
-gateway = "" # leave empty unless you need a specific gateway
-display = false # show coords on display
-display_altitude = false # show altitude on display
 
 [main.plugins.pisugarx]
 enabled = false

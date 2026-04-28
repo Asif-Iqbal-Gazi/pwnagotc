@@ -1,16 +1,6 @@
 #!/bin/bash -e
 
 cd /opt
-echo -e "\e[32m### Manually installing lgpio from source ###\e[0m"
-wget http://abyz.me.uk/lg/lg.zip
-unzip lg.zip
-cd lg
-make
-make install
-
-cd /opt
-rm -r lg.zip lg/
-
 if [ ! -d pwnagotchi ]; then
     git clone https://github.com/Asif-Iqbal-Gazi/pwnagotc.git pwnagotchi
     cd pwnagotchi/
