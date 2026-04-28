@@ -15,6 +15,7 @@ class WificapcClient:
         self._event_handlers = {}
         self._running = False
         self._buf = b''
+        self._reconnect_cb = None
 
     def connect(self):
         while True:
@@ -33,6 +34,9 @@ class WificapcClient:
 
     def on(self, event, callback):
         self._event_handlers.setdefault(event, []).append(callback)
+
+    def on_reconnect(self, callback):
+        self._reconnect_cb = callback
 
     def cmd(self, command, timeout=10, **params):
         with self._lock:
@@ -79,6 +83,26 @@ class WificapcClient:
                 if self._running:
                     logging.error("wificapc reader: %s", e)
                 break
+        self._on_connection_lost()
+
+    def _on_connection_lost(self):
+        self._running = False
+        with self._lock:
+            for entry in self._pending.values():
+                entry['result'] = {'ok': False, 'error': 'connection lost'}
+                entry['evt'].set()
+            self._pending.clear()
+        threading.Thread(target=self._reconnect_loop, daemon=True,
+                         name='WificapcReconnect').start()
+
+    def _reconnect_loop(self):
+        logging.info("wificapc reconnecting...")
+        self.connect()
+        if self._reconnect_cb:
+            try:
+                self._reconnect_cb()
+            except Exception as e:
+                logging.error("wificapc reconnect callback: %s", e)
 
     def _dispatch(self, line):
         try:

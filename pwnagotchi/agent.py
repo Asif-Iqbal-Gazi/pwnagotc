@@ -197,9 +197,22 @@ class Agent(Automata):
         logging.info("supported channels: %s", self._supported_channels)
         logging.info("handshakes will be collected inside %s", cfg['handshakes'])
 
+    def _on_wificapc_reconnect(self):
+        logging.info("wificapc reconnected, re-initializing...")
+        self.start_monitor_mode()
+        try:
+            hop_channels = (self._config['personality']['channels']
+                            or self._supported_channels)
+            self._wificapc.cmd('recon_start')
+            self._wificapc.cmd('hop_start', channels=hop_channels,
+                               interval_ms=self._config['wificapc'].get('hop_interval_ms', 250))
+        except Exception as e:
+            logging.warning("wificapc re-init after reconnect: %s", e)
+
     def start(self):
         self._wait_wificapc()
         self._register_events()
+        self._wificapc.on_reconnect(self._on_wificapc_reconnect)
         self.set_starting()
         self.start_monitor_mode()
         self._load_recovery_data()
