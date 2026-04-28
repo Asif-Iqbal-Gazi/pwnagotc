@@ -12,7 +12,7 @@ cd /opt
 rm -r lg.zip lg/
 
 if [ ! -d pwnagotchi ]; then
-    git clone https://github.com/jayofelony/pwnagotchi.git
+    git clone https://github.com/Asif-Iqbal-Gazi/pwnagotch.git pwnagotchi
     cd pwnagotchi/
 else
     cd /opt/pwnagotchi/
@@ -31,9 +31,6 @@ echo -e "\e[32m### Activating virtual environment ###\e[0m"
 source /opt/.pwn/bin/activate
 
 echo -e "\e[32m### Installing Pwnagotchi ###\e[0m"
-export PATH="/root/.cargo/bin:$PATH"
-source /root/.profile
-source /root/.cargo/env
 pip3 cache purge
 pip3 install . --no-cache-dir
 deactivate
