@@ -4,7 +4,8 @@ import logging
 
 import pwnagotchi
 import pwnagotchi.utils as utils
-import pwnagotchi.mesh.wifi as wifi
+
+NUM_CHANNELS = 14
 
 
 class Epoch(object):
@@ -55,9 +56,9 @@ class Epoch(object):
         self.non_overlapping_channels = {1: 0, 6: 0, 11: 0}
         # observation vectors
         self._observation = {
-            'aps_histogram': [0.0] * wifi.NumChannels,
-            'sta_histogram': [0.0] * wifi.NumChannels,
-            'peers_histogram': [0.0] * wifi.NumChannels
+            'aps_histogram': [0.0] * NUM_CHANNELS,
+            'sta_histogram': [0.0] * NUM_CHANNELS,
+            'peers_histogram': [0.0] * NUM_CHANNELS
         }
         self._observation_ready = threading.Event()
         self._epoch_data = {}
@@ -91,9 +92,9 @@ class Epoch(object):
 
         num_aps = len(aps) + 1e-10
         num_sta = sum(len(ap['clients']) for ap in aps) + 1e-10
-        aps_per_chan = [0.0] * wifi.NumChannels
-        sta_per_chan = [0.0] * wifi.NumChannels
-        peers_per_chan = [0.0] * wifi.NumChannels
+        aps_per_chan = [0.0] * NUM_CHANNELS
+        sta_per_chan = [0.0] * NUM_CHANNELS
+        peers_per_chan = [0.0] * NUM_CHANNELS
 
         for ap in aps:
             ch_idx = ap['channel'] - 1
@@ -101,14 +102,14 @@ class Epoch(object):
                 aps_per_chan[ch_idx] += 1.0
                 sta_per_chan[ch_idx] += len(ap['clients'])
             except IndexError:
-                logging.error("got data on channel %d, we can store %d channels" % (ap['channel'], wifi.NumChannels))
+                logging.error("got data on channel %d, we can store %d channels" % (ap['channel'], NUM_CHANNELS))
 
         for peer in peers:
             try:
                 peers_per_chan[peer.last_channel - 1] += 1.0
             except IndexError:
                 logging.error(
-                    "got peer data on channel %d, we can store %d channels" % (peer.last_channel, wifi.NumChannels))
+                    "got peer data on channel %d, we can store %d channels" % (peer.last_channel, NUM_CHANNELS))
 
         # normalize
         aps_per_chan = [e / num_aps for e in aps_per_chan]
