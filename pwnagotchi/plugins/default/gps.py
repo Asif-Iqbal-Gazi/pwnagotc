@@ -27,27 +27,41 @@ class GPS(plugins.Plugin):
 
     def on_ready(self, agent):
         if os.path.exists(self.options["device"]) or ":" in self.options["device"]:
-            logging.info(
-                f"enabling bettercap's gps module for {self.options['device']}"
-            )
-            try:
-                agent.run("gps off")
-            except Exception:
-                logging.info(f"bettercap gps module was already off")
-                pass
-
-            agent.run(f"set gps.device {self.options['device']}")
-            agent.run(f"set gps.baudrate {self.options['speed']}")
-            agent.run("gps on")
-            logging.info(f"bettercap gps module enabled on {self.options['device']}")
+            logging.info(f"GPS device detected: {self.options['device']}")
             self.running = True
         else:
             logging.warning("no GPS detected")
 
+    def _read_gpsd(self):
+        import socket as _socket
+        device = self.options.get("device", "localhost:2947")
+        if ":" in device:
+            host, port = device.split(":", 1)
+            try:
+                s = _socket.create_connection((host, int(port)), timeout=2)
+                s.sendall(b'?WATCH={"enable":true,"json":true}\n')
+                s.sendall(b'?POLL;\n')
+                data = s.recv(4096).decode("utf-8", errors="replace")
+                s.close()
+                import json as _json
+                for line in data.splitlines():
+                    try:
+                        obj = _json.loads(line)
+                        if obj.get("class") == "TPV" and obj.get("lat"):
+                            return {
+                                "Latitude": obj["lat"],
+                                "Longitude": obj["lon"],
+                                "Altitude": obj.get("alt", 0.0),
+                            }
+                    except Exception:
+                        pass
+            except Exception as e:
+                logging.debug("gpsd read error: %s", e)
+        return None
+
     def on_handshake(self, agent, filename, access_point, client_station):
         if self.running:
-            info = agent.session()
-            self.coordinates = info["gps"]
+            self.coordinates = self._read_gpsd()
             gps_filename = filename.replace(".pcap", ".gps.json")
 
             if self.coordinates and all([

@@ -12,6 +12,22 @@ from zipfile import ZipFile
 from datetime import datetime
 from enum import Enum
 
+def freq_to_channel(freq: float) -> int:
+    if 2412 <= freq <= 2472:
+        return int(((freq - 2412) / 5) + 1)
+    elif freq == 2484:
+        return 14
+    elif 5150 <= freq <= 5350:
+        return int(((freq - 5180) / 20) + 36)
+    elif 5470 <= freq <= 5725:
+        return int(((freq - 5500) / 20) + 100)
+    elif 5725 < freq <= 5850:
+        return int(((freq - 5745) / 20) + 149)
+    elif 5925 <= freq <= 7125:
+        return int(((freq - 5950) / 20) + 11)
+    raise ValueError("The frequency %s MHz is not a valid Wi-Fi frequency." % freq)
+
+
 def parse_version(version):
     """
     Converts a version str to tuple, so that versions can be compared
@@ -624,7 +640,7 @@ def extract_from_pcap(path, fields):
                 raise FieldNotFoundError("Could not find field [ENCRYPTION]")
         elif field == WifiInfo.CHANNEL:
             from scapy.layers.dot11 import sniff, RadioTap
-            from pwnagotchi.mesh.wifi import freq_to_channel
+            from pwnagotchi.utils import freq_to_channel
             packets = sniff(offline=path, count=1)
             try:
                 results[field] = freq_to_channel(packets[0][RadioTap].ChannelFrequency)
@@ -632,7 +648,7 @@ def extract_from_pcap(path, fields):
                 raise FieldNotFoundError("Could not find field [CHANNEL]")
         elif field == WifiInfo.FREQUENCY:
             from scapy.layers.dot11 import sniff, RadioTap
-            from pwnagotchi.mesh.wifi import freq_to_channel
+            from pwnagotchi.utils import freq_to_channel
             packets = sniff(offline=path, count=1)
             try:
                 results[field] = packets[0][RadioTap].ChannelFrequency
@@ -640,7 +656,7 @@ def extract_from_pcap(path, fields):
                 raise FieldNotFoundError("Could not find field [FREQUENCY]")
         elif field == WifiInfo.RSSI:
             from scapy.layers.dot11 import sniff, RadioTap
-            from pwnagotchi.mesh.wifi import freq_to_channel
+            from pwnagotchi.utils import freq_to_channel
             packets = sniff(offline=path, count=1)
             try:
                 results[field] = packets[0][RadioTap].dBm_AntSignal

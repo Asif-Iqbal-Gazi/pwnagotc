@@ -119,7 +119,7 @@ class ohcapi(plugins.Plugin):
             config = agent.config()
             reported = self.report.data_field_or('reported', default=[])
             processed_stations = self.report.data_field_or('processed_stations', default=[])
-            handshake_dir = config['bettercap']['handshakes']
+            handshake_dir = config['wificapc']['handshakes']
 
             # Find .pcap files
             handshake_filenames = os.listdir(handshake_dir)

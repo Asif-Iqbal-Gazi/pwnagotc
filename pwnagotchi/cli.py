@@ -39,8 +39,6 @@ def pwnagotchi_cli():
         while True:
             display.on_manual_mode(agent.last_session)
             time.sleep(5)
-            if grid.is_connected():
-                plugins.on('internet_available', agent)
 
     def do_auto_mode(agent):
         logging.info("entering auto mode ...")
@@ -81,17 +79,8 @@ def pwnagotchi_cli():
                 # affect ours ... neat ^_^
                 agent.next_epoch()
 
-                if grid.is_connected():
-                    plugins.on('internet_available', agent)
-
             except Exception as e:
-                if str(e).find("wifi.interface not set") > 0:
-                    logging.exception("main loop exception due to unavailable wifi device, likely programmatically disabled (%s)", e)
-                    logging.info("sleeping 60 seconds then advancing to next epoch to allow for cleanup code to trigger")
-                    time.sleep(60)
-                    agent.next_epoch()
-                else:
-                    logging.exception("main loop exception (%s)", e)
+                logging.exception("main loop exception (%s)", e)
 
     def add_parsers(parser):
         """
@@ -183,7 +172,6 @@ def pwnagotchi_cli():
     from pwnagotchi.agent import Agent
     from pwnagotchi.ui import fonts
     from pwnagotchi.ui.display import Display
-    from pwnagotchi import grid
     from pwnagotchi import plugins
 
     pwnagotchi.config = config

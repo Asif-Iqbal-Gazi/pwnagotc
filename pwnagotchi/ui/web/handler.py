@@ -13,7 +13,6 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 os.environ["WERKZEUG_RUN_MAIN"] = "false"
 
 import pwnagotchi
-import pwnagotchi.grid as grid
 import pwnagotchi.ui.web as web
 from pwnagotchi import plugins
 
@@ -117,99 +116,46 @@ class Handler:
         )
 
     def inbox(self):
-        page = request.args.get("p", default=1, type=int)
-        inbox = {"pages": 1, "records": 0, "messages": []}
-        error = None
-
-        try:
-            if not grid.is_connected():
-                raise Exception("not connected")
-
-            inbox = grid.inbox(page, with_pager=True)
-        except Exception as e:
-            logging.exception("error while reading pwnmail inbox")
-            error = str(e)
-
         return render_template(
-            "inbox.html", name=pwnagotchi.name(), page=page, error=error, inbox=inbox
+            "inbox.html",
+            name=pwnagotchi.name(),
+            page=1,
+            error="Mesh networking (pwngrid) has been removed.",
+            inbox={"pages": 1, "records": 0, "messages": []},
         )
 
     def inbox_profile(self):
-        data = {}
-        error = None
-
-        try:
-            data = grid.get_advertisement_data()
-        except Exception as e:
-            logging.exception("error while reading pwngrid data")
-            error = str(e)
-
         return render_template(
             "profile.html",
             name=pwnagotchi.name(),
             fingerprint=self._agent.fingerprint(),
-            data=json.dumps(data, indent=2),
-            error=error,
+            data="{}",
+            error="Mesh networking (pwngrid) has been removed.",
         )
 
     def inbox_peers(self):
-        peers = {}
-        error = None
-
-        try:
-            peers = grid.memory()
-        except Exception as e:
-            logging.exception("error while reading pwngrid peers")
-            error = str(e)
-
         return render_template(
-            "peers.html", name=pwnagotchi.name(), peers=peers, error=error
+            "peers.html",
+            name=pwnagotchi.name(),
+            peers={},
+            error="Mesh networking (pwngrid) has been removed.",
         )
 
     def show_message(self, id):
-        message = {}
-        error = None
-
-        try:
-            if not grid.is_connected():
-                raise Exception("not connected")
-
-            message = grid.inbox_message(id)
-            if message["data"]:
-                message["data"] = base64.b64decode(message["data"]).decode("utf-8")
-        except Exception as e:
-            logging.exception("error while reading pwnmail message %d" % int(id))
-            error = str(e)
-
         return render_template(
-            "message.html", name=pwnagotchi.name(), error=error, message=message
+            "message.html",
+            name=pwnagotchi.name(),
+            error="Mesh networking (pwngrid) has been removed.",
+            message={},
         )
 
     def new_message(self):
-        to = request.args.get("to", default="")
-        return render_template("new_message.html", to=to)
+        return render_template("new_message.html", to="")
 
     def send_message(self):
-        to = request.form["to"]
-        message = request.form["message"]
-        error = None
-
-        try:
-            if not grid.is_connected():
-                raise Exception("not connected")
-
-            grid.send_message(to, message)
-        except Exception as e:
-            error = str(e)
-
-        return jsonify({"error": error})
+        return jsonify({"error": "Mesh networking (pwngrid) has been removed."})
 
     def mark_message(self, id, mark):
-        if not grid.is_connected():
-            abort(200)
-
-        logging.info("marking message %d as %s" % (int(id), mark))
-        grid.mark_message(id, mark)
         return redirect("/inbox")
 
     def plugins(self, name, subpath):

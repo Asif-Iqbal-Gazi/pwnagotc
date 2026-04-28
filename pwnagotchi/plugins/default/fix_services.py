@@ -10,7 +10,6 @@ import pwnagotchi
 from pwnagotchi import plugins
 
 import pwnagotchi.ui.faces as faces
-from pwnagotchi.bettercap import Client
 
 from pwnagotchi.ui.components import Text
 from pwnagotchi.ui.view import BLACK
@@ -33,12 +32,10 @@ class FixServices(plugins.Plugin):
         self.pattern = re.compile(r'ieee80211 phy0: brcmf_cfg80211_add_iface: iface validation failed: err=-95')
         self.pattern2 = re.compile(r'wifi error while hopping to channel')
         self.pattern3 = re.compile(r'Firmware has halted or crashed')
-        self.pattern4 = re.compile(r'error 400: could not find interface wlan0mon')
-        self.pattern5 = re.compile(r'fatal error: concurrent map iteration and map write')
-        self.pattern6 = re.compile(r'panic: runtime error')
+        self.pattern4 = re.compile(r'wificapc.*not found|could not find interface wlan0mon')
+        self.pattern5 = re.compile(r'wificapc.*crashed|fatal error')
         self.pattern7 = re.compile(r'ieee80211 phy0: _brcmf_set_multicast_list: Setting allmulti failed, -110')
         self.isReloadingMon = False
-        self.connection = None
         self.LASTTRY = 0
         self.is_disabled = self._check_external_adapter()
 
@@ -120,31 +117,13 @@ class FixServices(plugins.Plugin):
             except Exception as err:
                 logging.error("[Fix_Services OffNOn]: %s" % repr(err))
 
-    # bettercap sys_log event
-    # search syslog events for the brcmf channel fail, and reset when it shows up
-    # apparently this only gets messages from bettercap going to syslog, not from syslog
-    def on_bcap_sys_log(self, agent, event):
-        if self.is_disabled:
-            return
-        if re.search('wifi error while hopping to channel', event['data']['Message']):
-            logging.debug("[Fix_Services]SYSLOG MATCH: %s" % event['data']['Message'])
-            logging.debug("[Fix_Services]**** restarting wifi.recon")
-            try:
-                result = agent.run("wifi.recon off; wifi.recon on")
-                if result["success"]:
-                    logging.debug("[Fix_Services] wifi.recon flip: success!")
-                    if hasattr(agent, 'view'):
-                        display = agent.view()
-                        if display:
-                            display.update(force=True, new_data={"status": "Wifi recon flipped!", "face": faces.COOL})
-                    else:
-                        print("Wifi recon flipped")
-                else:
-                    logging.warning("[Fix_Services] wifi.recon flip: FAILED: %s" % repr(result))
-                    self._tryTurningItOffAndOnAgain(agent)
-            except Exception as err:
-                logging.error("[Fix_Services]SYSLOG wifi.recon flip fail: %s" % err)
-                self._tryTurningItOffAndOnAgain(agent)
+    def _restart_wificapc_recon(self, agent):
+        try:
+            agent._wificapc.cmd('hop_stop')
+            agent._wificapc.cmd('recon_start')
+            logging.debug("[Fix_Services] wificapc recon restarted")
+        except Exception as err:
+            logging.error("[Fix_Services] wificapc recon restart failed: %s", err)
 
     def on_epoch(self, agent, epoch, epoch_data):
         if self.is_disabled:
@@ -177,21 +156,9 @@ class FixServices(plugins.Plugin):
                     display.set('status', 'Wifi channel stuck. Restarting recon.')
                     display.update(force=True)
                 logging.debug('[Fix_Services] Wifi channel stuck. Restarting recon.')
-
-                try:
-                    result = agent.run("wifi.recon off; wifi.recon on")
-                    if result["success"]:
-                        logging.debug("[Fix_Services] wifi.recon flip: success!")
-                        if display:
-                            display.update(force=True, new_data={"status": "Wifi recon flipped!",
-                                                                 "face": faces.COOL})
-                        else:
-                            print("Wifi recon flipped\nthat was easy!")
-                    else:
-                        logging.warning("[Fix_Services] wifi.recon flip: FAILED: %s" % repr(result))
-
-                except Exception as err:
-                    logging.error("[Fix_Services wifi.recon flip] %s" % repr(err))
+                self._restart_wificapc_recon(agent)
+                if display:
+                    display.update(force=True, new_data={"status": "Recon restarted!", "face": faces.COOL})
 
             # Look for pattern 3
             elif len(self.pattern3.findall(other_last_lines)) >= 1:
@@ -221,39 +188,19 @@ class FixServices(plugins.Plugin):
 
             # Look for pattern 5
             elif len(self.pattern5.findall(other_other_last_lines)) >= 1:
-                logging.debug("[Fix_Services] Bettercap has crashed!")
+                logging.debug("[Fix_Services] wificapc has crashed!")
                 if hasattr(agent, 'view'):
-                    display.set('status', 'Restarting pwnagotchi!')
+                    display.set('status', 'Restarting wificapc!')
                     display.update(force=True)
-                os.system("systemctl restart bettercap")
-                pwnagotchi.restart("AUTO")
-
-            # Look for pattern 6
-            elif len(self.pattern6.findall(other_other_last_lines)) >= 1:
-                logging.debug("[Fix_Services] Bettercap has crashed!")
-                if hasattr(agent, 'view'):
-                    display.set('status', 'Restarting pwnagotchi!')
-                    display.update(force=True)
-                os.system("systemctl restart bettercap")
+                os.system("systemctl restart wificapc")
                 pwnagotchi.restart("AUTO")
 
             # Look for pattern 7
             elif len(self.pattern7.findall(other_other_last_lines)) >= 1:
                 logging.debug("[Fix_Services] Monitor mode failed!")
-                try:
-                    result = agent.run("wifi.recon off; wifi.recon on")
-                    if result["success"]:
-                        logging.debug("[Fix_Services] wifi.recon flip: success!")
-                        if display:
-                            display.update(force=True, new_data={"status": "Wifi recon flipped!",
-                                                                 "face": faces.COOL})
-                        else:
-                            print("Wifi recon flipped\nthat was easy!")
-                    else:
-                        logging.warning("[Fix_Services] wifi.recon flip: FAILED: %s" % repr(result))
-
-                except Exception as err:
-                    logging.error("[Fix_Services wifi.recon flip] %s" % repr(err))
+                self._restart_wificapc_recon(agent)
+                if display:
+                    display.update(force=True, new_data={"status": "Recon restarted!", "face": faces.COOL})
             else:
                 print("logs look good")
 

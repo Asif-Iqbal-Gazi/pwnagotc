@@ -27,7 +27,11 @@ class KeyPair(object):
             if not os.path.exists(self.priv_path) or not os.path.exists(self.pub_path):
                 self._view.on_keys_generation()
                 logging.info("generating %s ..." % self.priv_path)
-                os.system("pwngrid -generate -keys '%s'" % self.path)
+                key = RSA.generate(2048)
+                with open(self.priv_path, 'wb') as _f:
+                    _f.write(key.export_key('PEM'))
+                with open(self.pub_path, 'wb') as _f:
+                    _f.write(key.publickey().export_key('PEM'))
 
             # load keys: they might be corrupted if the unit has been turned off during the generation, in this case
             # the exception will remove the files and go back at the beginning of this loop.

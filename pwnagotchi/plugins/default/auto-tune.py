@@ -584,8 +584,6 @@ class auto_tune(plugins.Plugin):
         self._agent = agent
         if self.options['reset_history']:
             self._agent._history = {}  # clear "max_interactions" data
-            self._agent.run("wifi.recon clear")
-            self._agent.run("wifi.clear")
 
     # called when the agent refreshed its access points list
     def on_wifi_update(self, agent, access_points):

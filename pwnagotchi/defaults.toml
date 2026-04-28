@@ -62,10 +62,6 @@ device = "/dev/ttyUSB0" # for GPSD: "localhost:2947"
 [main.plugins.gps_listener]
 enabled = false
 
-[main.plugins.grid]
-enabled = true
-report = true
-
 [main.plugins.logtail]
 enabled = false
 max-lines = 10000
@@ -225,23 +221,10 @@ enabled = false
 rotation = 180
 type = "waveshare_4"
 
-[bettercap]
+[wificapc]
+socket = "/run/wificapc.sock"
 handshakes = "/etc/pwnagotchi/handshakes"
-silence = [
-    "ble.device.new",
-    "ble.device.lost",
-    "ble.device.service.discovered",
-    "ble.device.characteristic.discovered",
-    "ble.device.disconnected",
-    "ble.device.connected",
-    "ble.connection.timeout",
-    "wifi.client.new",
-    "wifi.client.lost",
-    "wifi.client.probe",
-    "wifi.ap.new",
-    "wifi.ap.lost",
-    "mod.started"
-]
+hop_interval_ms = 250
 
 [fs.memory]
 enabled = true

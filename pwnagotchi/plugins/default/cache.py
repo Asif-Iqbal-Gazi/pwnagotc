@@ -38,7 +38,7 @@ class Cache(plugins.Plugin):
 
     def on_config_changed(self, config):
         try:
-            handshake_dir = config["bettercap"].get("handshakes")
+            handshake_dir = config["wificapc"].get("handshakes")
             self.cache_dir = os.path.join(handshake_dir, "cache")
             os.makedirs(self.cache_dir, exist_ok=True)
         except Exception:

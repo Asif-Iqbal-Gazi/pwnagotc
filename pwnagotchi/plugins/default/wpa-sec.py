@@ -143,7 +143,7 @@ class WpaSec(plugins.Plugin):
             try:
                 if 'download_results' in self.options and self.options['download_results']:
                     config = agent.config()
-                    handshake_dir = config['bettercap']['handshakes']
+                    handshake_dir = config['wificapc']['handshakes']
                     
                     cracked_file_path = os.path.join(handshake_dir, 'wpa-sec.cracked.potfile')
 

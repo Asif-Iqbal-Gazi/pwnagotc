@@ -23,7 +23,7 @@ class UploadConvertPlugin(Plugin):
         logging.info('[pwncrack] loading')
 
     def on_config_changed(self, config):
-        self.handshake_dir = config["bettercap"].get("handshakes")
+        self.handshake_dir = config["wificapc"].get("handshakes")
         self.key = self.options.get('key', "")  # Change this to your key
         self.whitelist = config["main"].get("whitelist", [])
         self.combined_file = os.path.join(self.handshake_dir, 'combined.hc22000')

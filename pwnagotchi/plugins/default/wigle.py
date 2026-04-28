@@ -89,7 +89,7 @@ class Wigle(plugins.Plugin):
             logging.info("[WIGLE] api_key must be set.")
             return
         self.donate = self.options.get("donate", False)
-        self.handshake_dir = config["bettercap"].get("handshakes")
+        self.handshake_dir = config["wificapc"].get("handshakes")
         report_filename = os.path.join(self.handshake_dir, ".wigle_uploads")
         self.report = StatusFile(report_filename, data_format="json")
         self.cache_dir = os.path.join(self.handshake_dir, "cache")

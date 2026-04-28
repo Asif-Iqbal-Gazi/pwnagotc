@@ -88,7 +88,7 @@ class Webgpsmap(plugins.Plugin):
                     try:
                         self.ALREADY_SENT = list()
                         response_data = bytes(
-                            json.dumps(self.load_gps_from_dir(self.config['bettercap']['handshakes'])), "utf-8")
+                            json.dumps(self.load_gps_from_dir(self.config['wificapc']['handshakes'])), "utf-8")
                         response_status = 200
                         response_mimetype = "application/json"
                         response_header_contenttype = 'application/json'
@@ -99,7 +99,7 @@ class Webgpsmap(plugins.Plugin):
                     # for download an all-in-one html file with positions.json inside
                     try:
                         self.ALREADY_SENT = list()
-                        json_data = json.dumps(self.load_gps_from_dir(self.config['bettercap']['handshakes']))
+                        json_data = json.dumps(self.load_gps_from_dir(self.config['wificapc']['handshakes']))
                         html_data = self.get_html()
                         html_data = html_data.replace('var offlinePositions = null;', 'var offlinePositions = ' + json_data)
                         response_data = bytes(html_data, "utf-8")
@@ -112,7 +112,7 @@ class Webgpsmap(plugins.Plugin):
                         return
                 # elif path.startswith('/newest'):
                 #     # returns all positions newer then timestamp
-                #     response_data = bytes(json.dumps(self.load_gps_from_dir(self.config['bettercap']['handshakes']), newest_only=True), "utf-8")
+                #     response_data = bytes(json.dumps(self.load_gps_from_dir(self.config['wificapc']['handshakes']), newest_only=True), "utf-8")
                 #     response_status = 200
                 #     response_mimetype = "application/json"
                 #     response_header_contenttype = 'application/json'

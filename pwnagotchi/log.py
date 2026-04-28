@@ -9,8 +9,41 @@ import warnings
 from datetime import datetime
 
 from pwnagotchi.voice import Voice
-from pwnagotchi.mesh.peer import Peer
 from file_read_backwards import FileReadBackwards
+
+
+class Peer:
+    """Minimal peer record used for last-session display (no mesh required)."""
+    def __init__(self, obj):
+        self.rssi = obj.get('rssi', 0)
+        self.encounters = obj.get('encounters', 0)
+        self.session_id = obj.get('session_id', '')
+        self.adv = obj.get('advertisement', {})
+
+    def name(self):
+        return self.adv.get('name', '???')
+
+    def identity(self):
+        return self.adv.get('identity', '???')
+
+    def pwnd_run(self):
+        return int(self.adv.get('pwnd_run', 0))
+
+    def pwnd_total(self):
+        return int(self.adv.get('pwnd_tot', 0))
+
+    def face(self):
+        import pwnagotchi.ui.faces as faces
+        return self.adv.get('face', faces.FRIEND)
+
+    def first_encounter(self):
+        return self.encounters == 1
+
+    def is_good_friend(self, config):
+        return self.encounters >= config['personality']['bond_encounters_factor']
+
+    def full_name(self):
+        return "%s@%s" % (self.name(), self.identity())
 
 LAST_SESSION_FILE = '/root/.pwnagotchi-last-session'
 
