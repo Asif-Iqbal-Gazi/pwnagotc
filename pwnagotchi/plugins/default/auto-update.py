@@ -178,6 +178,13 @@ def parse_version(cmd):
     raise Exception('could not parse version from "%s": output=\n%s' % (cmd, out))
 
 
+def wificapc_version():
+    try:
+        return parse_version('wificapc -V')
+    except Exception:
+        return '0.0.0'
+
+
 class AutoUpdate(plugins.Plugin):
     __author__ = 'evilsocket@gmail.com'
     __version__ = '1.1.1'
@@ -222,7 +229,8 @@ class AutoUpdate(plugins.Plugin):
 
                 to_install = []
                 to_check = [
-                    ('Asif-Iqbal-Gazi/pwnagotc', pwnagotchi.__version__, False, 'pwnagotchi')
+                    ('Asif-Iqbal-Gazi/pwnagotc', pwnagotchi.__version__, False, 'pwnagotchi'),
+                    ('Asif-Iqbal-Gazi/WiFiCapC', wificapc_version(), True, 'wificapc'),
                 ]
 
                 for repo, local_version, is_native, svc_name in to_check:
