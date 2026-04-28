@@ -103,8 +103,9 @@ class View(object):
         plugins.on('ui_setup', self)
 
         if config['ui']['fps'] > 0.0:
-            self._ignore_changes = ()
             threading.Thread(target=self._refresh_handler, args=(), name="UI Handler", daemon=True).start()
+
+            self._ignore_changes = ()
         else:
             logging.warning("ui.fps is 0, the display will only update for major changes")
             self._ignore_changes = ('uptime', 'name')
