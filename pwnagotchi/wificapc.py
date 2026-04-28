@@ -42,7 +42,8 @@ class WificapcClient:
             self._pending[req_id] = entry
 
         msg = {'id': req_id, 'cmd': command}
-        msg.update(params)
+        if params:
+            msg['args'] = params
         try:
             self._sock.sendall((json.dumps(msg) + '\n').encode())
         except Exception:
