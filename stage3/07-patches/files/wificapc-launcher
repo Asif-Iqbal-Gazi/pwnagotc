@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+source /usr/bin/pwnlib
+
+reload_brcm
+start_monitor_interface
+
+exec /usr/local/bin/wificapc

@@ -21,6 +21,7 @@ libfreetype6
 libfreetype-dev
 libjpeg-dev
 liblgpio-dev
+libnl-genl-3-dev
 libnetfilter-queue-dev
 libopenblas-dev
 libopenjp2-7

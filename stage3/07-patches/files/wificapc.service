@@ -1,0 +1,17 @@
+[Unit]
+Description=WiFiCapC - WiFi capture and control daemon
+Documentation=https://github.com/Asif-Iqbal-Gazi/WiFiCapC
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/wificapc-launcher
+Restart=always
+RestartSec=5
+TasksMax=infinity
+LimitNPROC=infinity
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

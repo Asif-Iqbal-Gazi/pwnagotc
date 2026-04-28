@@ -1,8 +1,8 @@
 [Unit]
-Description=pwnagotchi Deep Reinforcement Learning instrumenting bettercap for WiFI pwning.
+Description=pwnagotchi - WiFi intelligence agent
 Documentation=https://pwnagotchi.org
 Wants=network.target
-After=pwngrid-peer.service
+After=wificapc.service
 
 [Service]
 Type=simple
