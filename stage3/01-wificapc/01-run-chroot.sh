@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-WIFICAPC_TAG=v0.6.5
+WIFICAPC_TAG=v0.6.6
 
 echo -e "\e[32m### Building and installing WiFiCapC ${WIFICAPC_TAG} ###\e[0m"
 cd /tmp

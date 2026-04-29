@@ -1,0 +1,105 @@
+name: Build 64-bit image
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'image-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    # pi-gen runs all four stages (bootstrap + base + lite + our stage3),
+    # cross-arch via qemu-user. Typical run: 30-90 min. Cap generously.
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pi-gen needs ~12 GB of working space for the chroot trees and the
+      # exported image. The default GH runner has ~14 GB free; clearing
+      # the language tool caches we never use buys us ~30 GB of headroom.
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Install pi-gen build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            arch-test \
+            binfmt-support \
+            curl \
+            debootstrap \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf \
+            git \
+            libarchive-tools \
+            make \
+            pigz \
+            qemu-system-arm \
+            qemu-user \
+            qemu-user-static \
+            qemu-utils \
+            quilt \
+            zerofree
+
+      - name: Build 64-bit image
+        env:
+          BUILD_USER: runner
+          BUILD_HOME: /home/runner
+          IMAGE_DIR: /home/runner/images
+        run: |
+          mkdir -p "$IMAGE_DIR"
+          # `make 64bit` clones pi-gen's arm64 branch, patches config-64bit
+          # in place, runs build.sh as root, then chowns the deploy dir
+          # back to BUILD_USER. Everything happens in /home/runner.
+          make 64bit
+
+      - name: Locate built image
+        id: artifact
+        run: |
+          set -e
+          shopt -s nullglob
+          imgs=(/home/runner/images/*.img.xz /home/runner/images/*.img.zip)
+          if [ ${#imgs[@]} -eq 0 ]; then
+            echo "::error::No image produced under /home/runner/images" >&2
+            ls -la /home/runner/images/ || true
+            exit 1
+          fi
+          img="${imgs[0]}"
+          (cd "$(dirname "$img")" && sha256sum "$(basename "$img")") > "${img}.sha256"
+          echo "img=$img" >> "$GITHUB_OUTPUT"
+          ls -la /home/runner/images/
+
+      # Tag-driven runs publish to a GitHub release. Manual runs (without
+      # a tag) just expose the artifact via the workflow page so we can
+      # iterate on the workflow itself without polluting the releases tab.
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.artifact.outputs.img }}
+            ${{ steps.artifact.outputs.img }}.sha256
+          generate_release_notes: true
+
+      - name: Upload as workflow artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwnagotchi-64bit-image
+          path: |
+            /home/runner/images/*.img.*
+            /home/runner/images/*.sha256
+          retention-days: 14
