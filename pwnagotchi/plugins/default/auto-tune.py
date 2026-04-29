@@ -154,6 +154,20 @@ class auto_tune(plugins.Plugin):
             logging.error(f"Error loading preset '{preset_name}': {str(e)}")
             return False, f"Error loading preset: {str(e)}"
     
+    def _push_wificapc_ttls(self):
+        """Flush ap_ttl / sta_ttl / min_rssi to wificapc.
+
+        wificapc only learns these via an explicit set_ttls call.
+        start_monitor_mode pushes them once at boot, so any later
+        retune (web form submit, preset load) is invisible to the
+        daemon until the next restart unless we re-push here.
+        """
+        try:
+            if self._agent and hasattr(self._agent, "push_ttls"):
+                self._agent.push_ttls()
+        except Exception as e:
+            logging.warning("auto-tune: push_ttls failed: %s", e)
+
     def _delete_preset(self, preset_name):
         """Delete a preset file"""
         try:
@@ -501,6 +515,10 @@ class auto_tune(plugins.Plugin):
                             if success:
                                 ret += "<div class='success'>%s</div>" % message
                                 save_config(self._agent._config, "/etc/pwnagotchi/config.toml")
+                                # Re-issue TTL/min_rssi to wificapc — start_monitor_mode
+                                # only pushes them once at boot, so without this a preset's
+                                # tuning would be agent-side only.
+                                self._push_wificapc_ttls()
                             else:
                                 ret += "<div class='error'>%s</div>" % message
                         else:
@@ -548,6 +566,9 @@ class auto_tune(plugins.Plugin):
                     ret += "</ul>"
                     if changed:
                         save_config(self._agent._config, "/etc/pwnagotchi/config.toml")
+                        # See note in load_preset branch — wificapc needs an
+                        # explicit set_ttls to pick up runtime tuning.
+                        self._push_wificapc_ttls()
                     ret += self.showEditForm(request)
                     ret += self.showHistogram()
                     ret += self.showChistos()

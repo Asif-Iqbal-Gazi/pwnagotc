@@ -124,12 +124,22 @@ def verify(name, path, source_path, display, update):
 def install(display, update):
 
     name = update['repo'].split('/')[1]
+    # The repo name (e.g. "WiFiCapC") is rarely the same as the binary name
+    # (e.g. "wificapc"). Native updates need the binary name to find the
+    # extracted file inside the zip and to look up the install path with
+    # `which`. Default to the lowercased repo name when the caller hasn't
+    # specified one explicitly.
+    binary = update.get('binary') or name.lower()
 
     path = make_path_for(name)
 
     download_and_unzip(name, path, display, update)
 
-    source_path = os.path.join(path, name)
+    # For native updates we verify and install the actual binary (lower-case
+    # filename inside the zip). For non-native (source archive) updates we
+    # keep the old behavior: source_path points at the extracted package
+    # directory which pip installs.
+    source_path = os.path.join(path, binary if update['native'] else name)
     if not verify(name, path, source_path, display, update):
         return False
 
@@ -137,18 +147,26 @@ def install(display, update):
     display.update(force=True, new_data={'status': 'Installing %s %s ...' % (name, update['available'])})
 
     if update['native']:
-        dest_path = subprocess.getoutput("which %s" % name)
+        dest_path = subprocess.getoutput("which %s" % binary)
         if dest_path == "":
-            logging.warning("[update] can't find path for %s" % name)
+            logging.warning("[update] can't find path for %s" % binary)
             return False
 
         logging.info("[update] stopping %s ..." % update['service'])
         os.system("service %s stop" % update['service'])
         shutil.move(source_path, dest_path)
-        os.chmod("/usr/local/bin/%s" % name, 0o755)
+        os.chmod(dest_path, 0o755)
         logging.info("[update] restarting %s ..." % update['service'])
         os.system("service %s start" % update['service'])
     else:
+        # TODO(pwnagotchi self-update): the source-archive path below
+        # assumes the deploy uses /opt/.pwn as a virtualenv and that the
+        # repo's pyproject.toml package name matches the running module
+        # ("pwnagotchi" vs the repo name "pwnagotc"). Both assumptions
+        # hold for the current image build but should be made explicit
+        # — read the venv path from config and validate the package name
+        # before invoking pip — so users on non-standard layouts don't
+        # silently no-op or partially update.
         if not os.path.exists(source_path):
             source_path = "%s-%s" % (source_path, update['available'])
 
@@ -228,12 +246,16 @@ class AutoUpdate(plugins.Plugin):
                 display.update(force=True, new_data={'status': 'Checking for updates ...'})
 
                 to_install = []
+                # (repo, local_version, native, service_name, binary_name)
+                # binary_name disambiguates the on-disk binary from the
+                # mixed-case repo (e.g. "wificapc" inside WiFiCapC.zip).
+                # Use None when not applicable (non-native source updates).
                 to_check = [
-                    ('Asif-Iqbal-Gazi/pwnagotc', pwnagotchi.__version__, False, 'pwnagotchi'),
-                    ('Asif-Iqbal-Gazi/WiFiCapC', wificapc_version(), True, 'wificapc'),
+                    ('Asif-Iqbal-Gazi/pwnagotc', pwnagotchi.__version__, False, 'pwnagotchi', None),
+                    ('Asif-Iqbal-Gazi/WiFiCapC', wificapc_version(), True, 'wificapc', 'wificapc'),
                 ]
 
-                for repo, local_version, is_native, svc_name in to_check:
+                for repo, local_version, is_native, svc_name, bin_name in to_check:
                     info = check(local_version, repo, is_native, self.options['token'])
                     if info['url'] is not None:
 
@@ -241,6 +263,8 @@ class AutoUpdate(plugins.Plugin):
                             "update for %s available (local version is '%s'): %s" % (
                                 repo, info['current'], info['url']))
                         info['service'] = svc_name
+                        if bin_name:
+                            info['binary'] = bin_name
                         to_install.append(info)
 
                 num_updates = len(to_install)

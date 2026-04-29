@@ -1,6 +1,6 @@
 import os
-import logging
 import re
+import logging
 import requests
 import sqlite3
 from datetime import datetime
@@ -71,9 +71,14 @@ class WpaSec(plugins.Plugin):
         if not remove_whitelisted([filename], config['main']['whitelist']):
             return
 
-        # prefer the .22000 file written by wificapc; fall back to .pcap
-        path_22000 = filename.replace('.pcap', '.22000')
-        upload_path = path_22000 if os.path.exists(path_22000) else filename
+        # wificapc writes .22000 directly; the agent already passes that
+        # exact path. Only fall back to a .pcap-derived sibling for
+        # backwards compat with older runs.
+        if filename.endswith('.22000') or not filename.endswith('.pcap'):
+            upload_path = filename
+        else:
+            path_22000 = filename[:-5] + '.22000'
+            upload_path = path_22000 if os.path.exists(path_22000) else filename
 
         db_conn = sqlite3.connect('/etc/pwnagotchi/.wpa_sec_db')
         with db_conn:
