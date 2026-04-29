@@ -71,14 +71,15 @@ class WpaSec(plugins.Plugin):
         if not remove_whitelisted([filename], config['main']['whitelist']):
             return
 
-        # wificapc writes .22000 directly; the agent already passes that
-        # exact path. Only fall back to a .pcap-derived sibling for
-        # backwards compat with older runs.
-        if filename.endswith('.22000') or not filename.endswith('.pcap'):
-            upload_path = filename
+        # wpa-sec.org runs hcxpcapngtool over uploads, which means it wants
+        # raw frames (.pcap / .pcapng), not the .22000 hashcat hash. The
+        # agent already prefers the daemon's .pcap path; only swap to a
+        # sibling .pcap if we somehow received the .22000.
+        if filename.endswith('.22000'):
+            sibling_pcap = filename[:-len('.22000')] + '.pcap'
+            upload_path = sibling_pcap if os.path.exists(sibling_pcap) else filename
         else:
-            path_22000 = filename[:-5] + '.22000'
-            upload_path = path_22000 if os.path.exists(path_22000) else filename
+            upload_path = filename
 
         db_conn = sqlite3.connect('/etc/pwnagotchi/.wpa_sec_db')
         with db_conn:

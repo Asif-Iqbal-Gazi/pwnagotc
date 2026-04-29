@@ -131,17 +131,25 @@ class Agent(Automata):
         ap_bssid = data.get("ap_bssid", "").lower()
         sta_mac = data.get("sta_mac", "").lower()
 
-        # Prefer the path the daemon reports — it's set only after fclose,
-        # so reading it here can't race the writer. Fall back to a derived
-        # path for backwards compatibility with older daemons.
-        filename = data.get("hash22000")
-        if not filename:
-            filename = os.path.join(
-                self._handshake_dir,
-                f"{ap_bssid.replace(':', '')}_{sta_mac.replace(':', '')}.22000",
-            )
+        # The daemon emits two paths after fclose (race-free):
+        #   data["file"]      -> per-pair .pcap (cached beacon + EAPOL frames),
+        #                        what wpa-sec.org accepts
+        #   data["hash22000"] -> hashcat .22000 for offline cracking
+        # Either may be absent for an incomplete handshake (e.g. only M3
+        # captured). Skip silently in that case — it's not an error, just
+        # an unfinished pair.
+        pcap_file = data.get("file")
+        hash22000 = data.get("hash22000")
+        if not pcap_file and not hash22000:
+            logging.debug("handshake.done with no usable file (incomplete pair)")
+            return
+
+        # Prefer the pcap for plugin consumers (wpa-sec uploads it directly,
+        # gps writes a sibling .gps.json next to it). Fall back to .22000
+        # only if the daemon didn't write the pcap.
+        filename = pcap_file or hash22000
         if not os.path.exists(filename):
-            logging.error("Handshake file missing: %s", filename)
+            logging.warning("handshake.done file vanished: %s", filename)
             return
         key = "%s -> %s" % (sta_mac, ap_bssid)
 
