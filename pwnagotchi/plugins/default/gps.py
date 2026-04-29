@@ -62,7 +62,12 @@ class GPS(plugins.Plugin):
     def on_handshake(self, agent, filename, access_point, client_station):
         if self.running:
             self.coordinates = self._read_gpsd()
-            gps_filename = filename.replace(".pcap", ".gps.json")
+            # Derive the sidecar by stripping the handshake's extension. The
+            # old `replace(".pcap", ".gps.json")` was a no-op on the .22000
+            # files wificapc writes — the open/json.dump that followed would
+            # then overwrite the hashcat file with JSON.
+            base, _ = os.path.splitext(filename)
+            gps_filename = base + ".gps.json"
 
             if self.coordinates and all([
                 # avoid 0.000... measurements

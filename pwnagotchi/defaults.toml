@@ -109,17 +109,6 @@ enabled = true
 [main.plugins.pwnstore_ui]
 enabled = true
 
-[main.plugins.webgpsmap]
-enabled = false
-
-[main.plugins.wigle]
-enabled = false
-api_key = "" # mandatory
-cvs_dir = "/tmp" # optionnal, is set, the CVS is written to this directory
-donate = false # default: off
-timeout = 30 # default: 30
-position = [7, 85] # optionnal
-
 [main.plugins.wpa-sec]
 enabled = false
 api_key = ""
