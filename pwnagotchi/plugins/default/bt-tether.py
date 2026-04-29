@@ -1317,6 +1317,10 @@ class BTTetherHelper(Plugin):
                         f"[bt-tether] Error forcing UI update after init error: {update_error}"
                     )
 
+    def on_epoch(self, agent, epoch, epoch_data):
+        if self.status == self.STATE_CONNECTED:
+            plugins.on('internet_available', agent)
+
     def on_unload(self, ui):
         """Cleanup when plugin is unloaded"""
         try:
