@@ -1318,8 +1318,13 @@ class BTTetherHelper(Plugin):
                     )
 
     def on_epoch(self, agent, epoch, epoch_data):
-        if self.status == self.STATE_CONNECTED:
-            plugins.on('internet_available', agent)
+        # internet_available is now driven by the agent's own probe loop
+        # (see agent._internet_loop). The previous per-epoch fire here
+        # only checked that the BT NAP profile was connected — it had no
+        # way to tell whether DNS actually worked through the link, so
+        # plugins like wpa-sec would speculatively fire HTTPS calls that
+        # blew up with NameResolutionError every minute.
+        return
 
     def on_unload(self, ui):
         """Cleanup when plugin is unloaded"""

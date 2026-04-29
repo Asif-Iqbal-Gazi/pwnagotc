@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import socket
 import threading
 import time
 
@@ -35,6 +36,15 @@ class Agent(Automata):
         self._aps = {}  # bssid -> ap dict
         self._stas = {}  # mac -> sta dict
         self._access_points = []
+
+        # Internet-reachability probe: periodic DNS check that drives the
+        # plugins.on('internet_available') / plugins.on('internet_unavailable')
+        # transitions. Plugins should subscribe to those events instead of
+        # firing off network calls speculatively (the bt-tether per-epoch
+        # fire used to be the only signal and it pinged regardless of
+        # whether DNS actually worked, which is what burned wpa-sec uploads).
+        self._internet_lock = threading.Lock()
+        self._internet_ok = None  # None = first probe pending
 
         # Empty peers dict kept for automata mood compatibility (no mesh)
         self._peers = {}
@@ -414,9 +424,75 @@ class Agent(Automata):
         if new_shakes > 0:
             self._view.on_handshakes(new_shakes)
 
+    # ---- internet reachability probe ----
+
+    def _probe_internet(self):
+        """Return True iff DNS + a TCP socket out work right now.
+
+        Two-step probe so we catch both flavors of failure:
+        1. A DNS resolution against a stable name. This was the failure
+           mode we kept hitting on bt-tether: the link was up, the BT
+           NAP profile reported connected, but DNS was not actually
+           routed — every requests.get(...) blew up with
+           NameResolutionError.
+        2. A short TCP connect to a Cloudflare DNS resolver. Confirms
+           outbound packets actually reach the internet (some captive-
+           portal style links resolve DNS but block outbound TCP).
+
+        Both have a 2 s ceiling and `wpa-sec.cracked.potfile` style
+        downstream calls handle their own timeouts on top.
+        """
+        host = self._config.get("main", {}).get(
+            "internet_probe_host", "cloudflare-dns.com"
+        )
+        timeout = float(self._config.get("main", {}).get("internet_probe_timeout", 2.0))
+        try:
+            socket.setdefaulttimeout(timeout)
+            ip = socket.gethostbyname(host)
+        except OSError:
+            return False
+        try:
+            with socket.create_connection((ip, 53), timeout=timeout):
+                return True
+        except OSError:
+            return False
+        finally:
+            socket.setdefaulttimeout(None)
+
+    def _internet_loop(self):
+        # Probe interval: short enough to react to a phone toggling data
+        # off, long enough to not hammer the DNS resolver. 30s is a
+        # reasonable default; user can tune via config if needed.
+        interval = int(self._config.get("main", {}).get("internet_probe_interval", 30))
+        while True:
+            ok = self._probe_internet()
+            transitioned = False
+            with self._internet_lock:
+                prev = self._internet_ok
+                if ok != prev:
+                    self._internet_ok = ok
+                    transitioned = True
+            if transitioned:
+                event = "internet_available" if ok else "internet_unavailable"
+                logging.info("agent: %s (probe -> %s)", event, ok)
+                try:
+                    plugins.on(event, self)
+                except Exception:
+                    logging.exception("agent: %s plugin handler error", event)
+            time.sleep(interval)
+
+    def is_internet_reachable(self):
+        """Cheap accessor for plugins that want to read the cached state
+        instead of running their own probe."""
+        with self._internet_lock:
+            return bool(self._internet_ok)
+
     def start_session_fetcher(self):
         threading.Thread(
             target=self._fetch_stats, args=(), name="Session Fetcher", daemon=True
+        ).start()
+        threading.Thread(
+            target=self._internet_loop, args=(), name="InternetMonitor", daemon=True
         ).start()
 
     def _fetch_stats(self):
