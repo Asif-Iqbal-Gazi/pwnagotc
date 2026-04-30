@@ -34,27 +34,53 @@ jobs:
           swap-storage: true
 
       - name: Install pi-gen build dependencies
+        # Mirrors pi-gen's own depends file. Missing one of these (e.g.
+        # bc) makes `build.sh` abort with "Required dependencies not
+        # installed" before any stage runs. Easier to install the full
+        # set than to chase the next missing one in another iteration.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             arch-test \
+            bc \
             binfmt-support \
             curl \
             debootstrap \
+            dosfstools \
+            file \
             gcc-aarch64-linux-gnu \
             gcc-arm-linux-gnueabihf \
             git \
+            gpg \
+            kmod \
+            kpartx \
             libarchive-tools \
+            libcap2-bin \
             make \
+            parted \
             pigz \
             qemu-system-arm \
             qemu-user \
             qemu-user-static \
             qemu-utils \
             quilt \
-            zerofree
+            rsync \
+            xxd \
+            xz-utils \
+            zerofree \
+            zip
+
+      - name: Pre-build disk snapshot
+        run: |
+          echo "==== df -h ===="
+          df -h
+          echo "==== free -h ===="
+          free -h
+          echo "==== mounted ===="
+          mount | head -20
 
       - name: Build 64-bit image
+        id: build
         env:
           BUILD_USER: runner
           BUILD_HOME: /home/runner
@@ -64,7 +90,46 @@ jobs:
           # `make 64bit` clones pi-gen's arm64 branch, patches config-64bit
           # in place, runs build.sh as root, then chowns the deploy dir
           # back to BUILD_USER. Everything happens in /home/runner.
+          set -x
           make 64bit
+
+      - name: Post-build disk snapshot
+        if: always()
+        run: |
+          echo "==== df -h ===="
+          df -h || true
+          echo "==== /home/runner/images ===="
+          sudo ls -la /home/runner/images/ 2>&1 || true
+          echo "==== work tree footprint ===="
+          sudo du -sh /home/runner/work-64bit/* 2>/dev/null | sort -h | tail -20 || true
+
+      # Save pi-gen's stage logs as a workflow artifact regardless of
+      # outcome. Without this, debugging a failed run requires admin
+      # access to the workflow logs API; with this anyone can grab the
+      # failing stage's output from the workflow run page.
+      - name: Collect pi-gen build logs
+        if: always()
+        run: |
+          mkdir -p /tmp/pi-gen-logs
+          for src in /home/runner/work-64bit /home/runner/work; do
+            [ -d "$src" ] || continue
+            sudo find "$src" -maxdepth 4 -type f \( -name '*.log' -o -name 'build.log' \) \
+              -exec cp --parents -t /tmp/pi-gen-logs {} + 2>/dev/null || true
+          done
+          # Capture a snapshot of the deploy dir even if no image was
+          # produced — directory listing helps tell "stage exited early"
+          # from "stage produced something we didn't expect to find."
+          sudo ls -laR /home/runner/images/ > /tmp/pi-gen-logs/deploy-dir.txt 2>&1 || true
+          sudo chown -R runner:runner /tmp/pi-gen-logs || true
+          sudo du -sh /tmp/pi-gen-logs || true
+
+      - name: Upload pi-gen logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-gen-logs
+          path: /tmp/pi-gen-logs/
+          retention-days: 14
 
       - name: Locate built image
         id: artifact
