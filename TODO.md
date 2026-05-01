@@ -4,6 +4,15 @@ Items that need agent / plugin work, including the consumer side of new
 WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
 `(WiFiCapC TODO-XYZ)`.
 
+## Design ideas (not yet TODOs)
+
+- [WiFiCapC docs/IDEAS/iface-and-driver-health.md](https://github.com/Asif-Iqbal-Gazi/WiFiCapC/blob/main/docs/IDEAS/iface-and-driver-health.md)
+  — architecture for brcmfmac wedge detection and external
+  recovery. Touches `fix_services.py` (Phase 3 — drop journalctl
+  polling, subscribe to the new `iface.unhealthy` IPC event) and
+  the pwnagotchi-image launcher (Phase 4 — eventually retire
+  `wlan0mon` if/when in-place mode switch works).
+
 ## Daemon-integration items
 
 ### TODO-D1 — Vendor strings in the UI
