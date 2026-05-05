@@ -44,10 +44,11 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
       our last `set_channel` echo, which goes stale during hopping.
 - Files: `pwnagotchi/agent.py`, ui components.
 
-### TODO-D4 — Call `delete_handshake` after successful wpa-sec upload
-- [ ] When WiFiCapC adds the `delete_handshake` IPC (WiFiCapC TODO-Q5),
-      have `wpa-sec.py` call it on `Status.SUCCESSFULL` rows. Today
-      the handshake dir grows unbounded.
+### TODO-D4 — Call `delete_handshake` after successful wpa-sec upload ✅ v3.0.8 (b9c1f13d)
+- [x] Opt-in via `main.plugins.wpa-sec.delete_after_upload` (default
+      off — users running offline hashcat against the .22000 want
+      the files to stick around). Sends `delete_handshake` to the
+      daemon and drops the local sqlite row.
 - Files: `pwnagotchi/plugins/default/wpa-sec.py`.
 
 ### TODO-D5 — Persistent recon table reload
@@ -78,11 +79,13 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
       break on custom layouts.
 - Files: `pwnagotchi/plugins/default/auto-update.py`.
 
-### TODO-A2 — Tame `_history` growth
-- [ ] `Agent._should_interact` increments per BSSID/MAC and never
-      evicts. After many epochs the dict holds every AP/STA ever
-      seen. Age out entries older than some window (mirror
-      personality TTLs).
+### TODO-A2 — Tame `_history` growth ✅ v3.0.8 (b9c1f13d)
+- [x] `_history` shape changed from `{who: int}` to
+      `{who: [count, last_seen_ts]}`. New `_evict_history` runs on
+      every 5s stats tick and drops entries older than
+      `personality.history_ttl` (default `4 * max(ap_ttl, sta_ttl)`).
+      Backward-compat: int entries from old recovery files upgrade
+      to `[int, now]` on first touch.
 - Files: `pwnagotchi/agent.py`.
 
 ### TODO-A3 — Decouple `wlan0mon` from defaults
@@ -107,12 +110,11 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
   `stage3/02-nexmon/01-run-chroot.sh`,
   `stage3/03-pwnagotchi/01-run-chroot.sh`.
 
-### TODO-A5 — Pin pwnagotchi clone in stage3/03-pwnagotchi
-- [ ] `stage3/03-pwnagotchi/01-run-chroot.sh` clones master from
-      GitHub (not the local checkout). Same problem as
-      `stage3/01-wificapc/01-run-chroot.sh` had before we pinned
-      `WIFICAPC_TAG`. Pin to the current pwnagotchi tag for
-      reproducible image builds.
+### TODO-A5 — Pin pwnagotchi clone in stage3/03-pwnagotchi ✅ v3.0.8 (b9c1f13d)
+- [x] `PWNAGOTCHI_TAG` env var pinned (currently `v3.0.8`).
+      `--depth 1 --branch`, retry-clone 3x with backoff, and
+      assert `pwnagotchi` is on `$PATH` after the venv install.
+      Mirrors the `stage3/01-wificapc/01-run-chroot.sh` pattern.
 - Files: `stage3/03-pwnagotchi/01-run-chroot.sh`.
 
 ---
