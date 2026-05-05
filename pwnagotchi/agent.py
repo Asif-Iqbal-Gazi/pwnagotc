@@ -509,6 +509,10 @@ class Agent(Automata):
                 self._update_handshakes(0)
             except Exception as err:
                 logging.error("[agent:_fetch_stats] update_handshakes: %s", repr(err))
+            try:
+                self._evict_history()
+            except Exception as err:
+                logging.error("[agent:_fetch_stats] evict_history: %s", repr(err))
             time.sleep(5)
 
     # ---- recovery ----
@@ -559,15 +563,51 @@ class Agent(Automata):
                 return True
         return False
 
+    # _history maps "who" (BSSID/MAC) to [interaction_count, last_seen_ts].
+    # Without TTL eviction the dict grew unbounded — every AP/STA ever
+    # seen, kept forever. _evict_history drops entries older than the
+    # configured TTL on every periodic stats tick.
+
+    def _history_ttl_seconds(self):
+        # Default to the longer of the two recon TTLs so we don't forget
+        # a target the daemon might still be tracking. Optional explicit
+        # personality.history_ttl overrides.
+        p = self._config["personality"]
+        return int(p.get(
+            "history_ttl",
+            max(p.get("ap_ttl", 120), p.get("sta_ttl", 300)) * 4,
+        ))
+
     def _should_interact(self, who):
         if self._has_handshake(who):
             return False
-        elif who not in self._history:
-            self._history[who] = 1
+        now = time.time()
+        entry = self._history.get(who)
+        if entry is None:
+            self._history[who] = [1, now]
             return True
-        else:
-            self._history[who] += 1
-        return self._history[who] < self._config["personality"]["max_interactions"]
+        # Backward-compat: old recovery files stored {who: int}.
+        if isinstance(entry, int):
+            entry = [entry, now]
+        entry[0] += 1
+        entry[1] = now
+        self._history[who] = entry
+        return entry[0] < self._config["personality"]["max_interactions"]
+
+    def _evict_history(self):
+        ttl = self._history_ttl_seconds()
+        cutoff = time.time() - ttl
+        # Build a stale-key list first; iterating-and-mutating a dict
+        # is fine here (single-threaded) but the explicit two-pass keeps
+        # the intent obvious.
+        stale = []
+        for who, entry in self._history.items():
+            if isinstance(entry, list) and entry[1] < cutoff:
+                stale.append(who)
+        for who in stale:
+            del self._history[who]
+        if stale:
+            logging.debug("agent: evicted %d stale history entries", len(stale))
 
     def associate(self, ap, throttle=-1):
         if self.is_stale():

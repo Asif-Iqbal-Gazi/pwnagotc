@@ -117,7 +117,7 @@ class WpaSec(plugins.Plugin):
 
                         try:
                             upload_response = self._upload_to_wpasec(handshake)
-                            
+
                             if upload_response.startswith("hcxpcapngtool"):
                                 logging.info(f"WPA_SEC: {handshake} successfully uploaded.")
                                 new_status = self.Status.SUCCESSFULL.value
@@ -131,7 +131,20 @@ class WpaSec(plugins.Plugin):
                                 ON CONFLICT(path) DO UPDATE SET status = excluded.status
                             ''', (handshake, new_status))
                             db_conn.commit()
-                            
+
+                            # Optional cleanup: ask the daemon to delete the
+                            # .pcap + .22000 for this pair, and drop the
+                            # local DB row. Off by default — users running
+                            # offline hashcat against the .22000 want the
+                            # files to stick around. Only fires on a server
+                            # ack ("hcxpcapngtool" response prefix).
+                            if (new_status == self.Status.SUCCESSFULL.value and
+                                    self.options.get('delete_after_upload')):
+                                self._delete_pair(agent, handshake)
+                                cursor.execute('DELETE FROM handshakes WHERE path = ?',
+                                               (handshake,))
+                                db_conn.commit()
+
                         except requests.exceptions.RequestException:
                             logging.exception("WPA_SEC: RequestException uploading %s, skipping until reload.", handshake)
                             self.skip_until_reload.add(handshake)
@@ -167,6 +180,49 @@ class WpaSec(plugins.Plugin):
                         self._write_cracked_single_files(cracked_file_path, handshake_dir)
             except Exception:
                 logging.exception("WPA_SEC: Exception downloading results.")
+
+    @staticmethod
+    def _pair_macs_from_path(path):
+        """Recover (ap_bssid, sta_mac) from a wificapc-named handshake
+        file. wificapc writes <dir>/<aphex>_<stahex>.{pcap,22000} where
+        each hex is 12 lowercase chars. Returns (ap, sta) in colon-
+        separated form, or (None, None) if the basename doesn't match."""
+        name = os.path.basename(path)
+        # strip extension
+        for ext in ('.pcap', '.22000', '.pcapng'):
+            if name.endswith(ext):
+                name = name[:-len(ext)]
+                break
+        if '_' not in name:
+            return None, None
+        ap_hex, _, sta_hex = name.partition('_')
+        if len(ap_hex) != 12 or len(sta_hex) != 12:
+            return None, None
+        try:
+            int(ap_hex, 16)
+            int(sta_hex, 16)
+        except ValueError:
+            return None, None
+        fmt = lambda h: ':'.join(h[i:i+2] for i in range(0, 12, 2))
+        return fmt(ap_hex), fmt(sta_hex)
+
+    def _delete_pair(self, agent, handshake_path):
+        """Ask the wificapc daemon to remove the .pcap + .22000 for the
+        (ap, sta) encoded in `handshake_path`. Best-effort: if the
+        daemon doesn't support delete_handshake (older release), we
+        log and move on rather than aborting the whole upload run."""
+        ap, sta = self._pair_macs_from_path(handshake_path)
+        if not ap or not sta:
+            logging.debug("WPA_SEC: cannot derive ap/sta from %s, skipping delete",
+                          handshake_path)
+            return
+        try:
+            res = agent._wificapc.cmd("delete_handshake", ap_bssid=ap, sta_mac=sta)
+            logging.info("WPA_SEC: deleted %s/%s (removed=%s)",
+                         ap, sta, res.get("removed", "?"))
+        except Exception as e:
+            logging.warning("WPA_SEC: delete_handshake(%s,%s) failed: %s",
+                            ap, sta, e)
 
     def _upload_to_wpasec(self, path, timeout=30):
         """
