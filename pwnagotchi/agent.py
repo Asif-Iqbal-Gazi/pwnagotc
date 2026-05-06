@@ -435,24 +435,33 @@ class Agent(Automata):
            NAP profile reported connected, but DNS was not actually
            routed — every requests.get(...) blew up with
            NameResolutionError.
-        2. A short TCP connect to a Cloudflare DNS resolver. Confirms
-           outbound packets actually reach the internet (some captive-
-           portal style links resolve DNS but block outbound TCP).
+        2. A short TCP connect to the resolved address on a port we
+           know it serves. Confirms outbound packets actually reach the
+           internet (some captive-portal-style links resolve DNS but
+           block outbound TCP).
 
-        Both have a 2 s ceiling and `wpa-sec.cracked.potfile` style
+        Default is `cloudflare-dns.com:443` — the host resolves to
+        Cloudflare's CDN edge which serves HTTPS (and DoH) on 443.
+        We previously defaulted to port 53 which only works against a
+        literal DNS-resolver IP like 1.1.1.1; resolving the *name*
+        cloudflare-dns.com lands on the CDN IP where 53 is closed,
+        so the probe always returned False. If a user wants DNS-port
+        semantics they can set host=1.1.1.1, port=53.
+
+        Both steps have a 2 s ceiling. `wpa-sec.cracked.potfile`-style
         downstream calls handle their own timeouts on top.
         """
-        host = self._config.get("main", {}).get(
-            "internet_probe_host", "cloudflare-dns.com"
-        )
-        timeout = float(self._config.get("main", {}).get("internet_probe_timeout", 2.0))
+        cfg = self._config.get("main", {})
+        host    = cfg.get("internet_probe_host", "cloudflare-dns.com")
+        port    = int(cfg.get("internet_probe_port", 443))
+        timeout = float(cfg.get("internet_probe_timeout", 2.0))
         try:
             socket.setdefaulttimeout(timeout)
             ip = socket.gethostbyname(host)
         except OSError:
             return False
         try:
-            with socket.create_connection((ip, 53), timeout=timeout):
+            with socket.create_connection((ip, port), timeout=timeout):
                 return True
         except OSError:
             return False
