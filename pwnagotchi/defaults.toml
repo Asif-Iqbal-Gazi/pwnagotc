@@ -208,6 +208,12 @@ type = "waveshare_4"
 socket = "/run/wificapc.sock"
 handshakes = "/etc/pwnagotchi/handshakes"
 hop_interval_ms = 250
+# Generate a fresh locally-administered random MAC for every
+# inject_assoc, so we don't broadcast the iface's real MAC on
+# every PMKID-elicitation attempt. Off by default — flip to true
+# for stealth deployments. Some captive-portal-style APs reject
+# locally-administered MACs, so it's opt-in.
+mac_rand = false
 
 [fs.memory]
 enabled = true

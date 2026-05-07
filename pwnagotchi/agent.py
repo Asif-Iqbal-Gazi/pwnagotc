@@ -268,6 +268,17 @@ class Agent(Automata):
         except Exception as e:
             logging.warning("wificapc set_handshake_dir: %s", e)
 
+        # Stealth: toggle MAC randomization on every inject_assoc per
+        # [wificapc] mac_rand in config.toml. Default off (matches the
+        # daemon's --mac-rand opt-in semantics). Best-effort — older
+        # daemons (pre-v0.6.10) reply "unknown command" and we proceed.
+        mac_rand = bool(cfg.get("mac_rand", False))
+        try:
+            self._wificapc.cmd("set_mac_rand", enabled=int(mac_rand))
+            logging.info("wificapc mac_rand: %s", "on" if mac_rand else "off")
+        except Exception as e:
+            logging.warning("wificapc set_mac_rand: %s", e)
+
         self.push_ttls()
 
         logging.info("supported channels: %s", self._supported_channels)
