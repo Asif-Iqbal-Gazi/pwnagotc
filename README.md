@@ -104,15 +104,19 @@ The release workflow (`.github/workflows/release.yml`) does this on every `v*` t
 Heavy lift — runs all four pi-gen stages cross-arch via qemu-user, takes 30–90 minutes, needs ~12 GB working space and ~20 GB free disk overall.
 
 ```bash
-# Install pi-gen build deps
+# Install pi-gen build deps (+ the nexmon DKMS packaging deps)
 sudo apt-get install -y \
     arch-test bc binfmt-support curl debootstrap dosfstools file \
     gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git gpg kmod kpartx \
     libarchive-tools libcap2-bin make parted pigz qemu-system-arm \
     qemu-user qemu-user-static qemu-utils quilt rsync xxd xz-utils \
-    zerofree zip
+    zerofree zip debhelper dh-sequence-dkms dpkg-dev
 
-# Build 64-bit image
+# Check out the nexmon firmware + driver submodules (stage3/02-nexmon)
+make submodules
+
+# Build 64-bit image (`make 64bit` first runs `nexmon-dkms` to build the
+# brcmfmac-nexmon driver .deb from the pinned submodule, then runs pi-gen)
 make 64bit
 # → ~/images/<date>-pwnagotchi-64bit.img.xz
 ```
@@ -131,7 +135,7 @@ git push origin image-v3.0.7
 |-------------------|-----------------------------------------------------------|
 | `00-packages`     | APT packages (libnl-genl-3-dev, hcxtools, build-essential, …) |
 | `01-wificapc`     | Clones WiFiCapC at the pinned `WIFICAPC_TAG`, builds, installs the binary |
-| `02-nexmon`       | Drops in Nexmon firmware + brcmfmac DKMS for monitor mode |
+| `02-nexmon`       | Builds Nexmon firmware from source + the brcmfmac-nexmon DKMS driver (both git submodules) for monitor mode |
 | `03-pwnagotchi`   | Clones this repo, creates `/opt/.pwn` venv, pip-installs  |
 | `04-patches`      | systemd units, launcher scripts, sudoers, profile aliases |
 | `05-pwnstore`     | Plugin store / community plugins                          |

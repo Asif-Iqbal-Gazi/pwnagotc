@@ -18,6 +18,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # nexmon firmware + brcmfmac-nexmon-dkms driver live in submodules
+          # under stage3/02-nexmon; `make 64bit` -> `nexmon-dkms` needs them.
+          submodules: recursive
 
       # pi-gen needs ~12 GB of working space for the chroot trees and the
       # exported image. The default GH runner has ~14 GB free; clearing
@@ -46,6 +50,9 @@ jobs:
             binfmt-support \
             curl \
             debootstrap \
+            debhelper \
+            dh-sequence-dkms \
+            dpkg-dev \
             dosfstools \
             file \
             gcc-aarch64-linux-gnu \
