@@ -102,10 +102,13 @@ class View(object):
 
         plugins.on('ui_setup', self)
 
+        # Must be set before the refresh thread starts: the thread calls
+        # state.changes(ignore=self._ignore_changes) on its first tick, so
+        # starting it before this attribute exists races into
+        # "AttributeError: ... has no attribute '_ignore_changes'".
+        self._ignore_changes = ()
         if config['ui']['fps'] > 0.0:
             threading.Thread(target=self._refresh_handler, args=(), name="UI Handler", daemon=True).start()
-
-            self._ignore_changes = ()
         else:
             logging.warning("ui.fps is 0, the display will only update for major changes")
             self._ignore_changes = ('uptime', 'name')

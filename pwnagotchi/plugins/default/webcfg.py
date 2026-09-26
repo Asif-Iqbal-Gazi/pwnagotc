@@ -1,6 +1,5 @@
 import logging
 import json
-import toml
 import threading  # FIX B5: replaced _thread with threading
 import pwnagotchi
 from pwnagotchi import restart, plugins

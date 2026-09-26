@@ -176,7 +176,7 @@ Retained from upstream and adapted for the WiFiCapC event surface:
 - `gps` — saves a `.gps.json` sidecar next to each captured handshake.
 - `bt-tether` — Bluetooth NAP profile for phone tethering.
 - `auto-tune` — runtime tuning of personality (deauth/assoc throttles, RSSI floor, TTLs); pushes TTL changes through to wificapc via `set_ttls`.
-- `auto-backup`, `cache`, `fix_services`, `gpio_buttons`, `logtail`, `memtemp`, `ohcapi`, `pisugarx`, `pwncrack`, `session-stats`, `ups_lite`, `webcfg`, `wittypi`.
+- `auto-backup`, `cache`, `fix_services`, `gpio_buttons`, `logtail`, `memtemp`, `pisugarx`, `session-stats`, `ups_lite`, `webcfg`, `wittypi`.
 
 Removed from upstream: `wigle`, `webgpsmap` (both depended on `.pcap` files we no longer write at the pwnagotchi level — the daemon's per-pair `.pcap` is wpa-sec / hcxpcapngtool format, not the bettercap-era continuous capture).
 
