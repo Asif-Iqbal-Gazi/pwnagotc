@@ -221,7 +221,7 @@ stage3/                     pi-gen stages for the image build
   release.yml               wheel + sdist on v* tag
   image-64bit.yml           full pi-gen image on image-v* tag
 config-64bit                pi-gen config (deploy / work dirs)
-Makefile                    `make 64bit`, `make 32bit`, locale helpers
+Makefile                    `make 64bit`, locale helpers
 ```
 
 ## Improvements / future work

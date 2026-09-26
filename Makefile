@@ -16,7 +16,7 @@ NEXMON_DKMS_DIR := stage3/02-nexmon/brcmfmac-nexmon-dkms
 NEXMON_DKMS_OUT := stage3/02-nexmon/files
 NEXMON_DRIVER_SRC := stage3/02-nexmon/nexmon/patches/driver/brcmfmac_6.18.y-nexmon
 
-.PHONY: submodules update-submodules nexmon-dkms 32bit 64bit update_langs compile_langs
+.PHONY: submodules update-submodules nexmon-dkms 64bit update_langs compile_langs
 
 # Check out every submodule at the commit this tree pins. Run after a fresh
 # clone — the image build needs the nexmon firmware + driver trees.
@@ -45,17 +45,6 @@ nexmon-dkms:
 	rm -f stage3/02-nexmon/brcmfmac-nexmon-dkms_*.buildinfo stage3/02-nexmon/brcmfmac-nexmon-dkms_*.changes
 	cd $(NEXMON_DKMS_DIR) && dh_clean && git checkout -- dkms.conf
 	@echo "built $$(ls $(NEXMON_DKMS_OUT)/brcmfmac-nexmon-dkms_*.deb)"
-
-# clone pi-gen into pi-gen-32bit folder
-32bit: nexmon-dkms
-	[ -d pi-gen-32bit ] || git clone "https://github.com/RPi-Distro/pi-gen.git" pi-gen-32bit
-	[ -d pi-gen-32bit ] && cd pi-gen-32bit && git pull
-	rm -rf pi-gen-32bit/stage2/EXPORT_IMAGE
-	sed -i "s|WORK_DIR=.*|WORK_DIR=\"$(BUILD_HOME)/work-32bit\"|" config-32bit
-	sed -i "s|DEPLOY_DIR=.*|DEPLOY_DIR=\"$(IMAGE_DIR)\"|" config-32bit
-	sudo ./pi-gen-32bit/build.sh -c config-32bit
-	mkdir -p $(IMAGE_DIR)
-	sudo chown $(BUILD_USER):$(BUILD_USER) -R $(IMAGE_DIR)
 
 # clone pi-gen arm64 branch into pi-gen-64bit folder
 64bit: nexmon-dkms
