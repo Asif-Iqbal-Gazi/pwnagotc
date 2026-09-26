@@ -15,14 +15,15 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
 
 ## Daemon-integration items
 
-### TODO-D1 — Vendor strings in the UI
-- [ ] Once WiFiCapC populates `ap.new` / `sta.new` events with real
-      `vendor` strings (WiFiCapC TODO-Q1), surface them next to the
-      MAC in the web UI and the e-paper display.
-- Today: `_on_ap_new` already reads `data.get("vendor", "")` so the
-  field flows through; the UI just shows blank because the daemon
-  emits `""`.
-- Files: `pwnagotchi/ui/components/*`, possibly the web UI templates.
+### TODO-D1 — Vendor strings in the UI ✅ v3.0.13 (assoc/deauth lines)
+- [x] WiFiCapC Q1 (v0.6.17) now emits a real `vendor` in `ap.new`/`sta.new`.
+      Added `_label(name, mac)` in `agent.py`; the association/deauth log +
+      status lines render "Name (MAC)" — AP SSID or client OUI vendor — and
+      fall back to the bare MAC when no name is known (unknown OUI, or a
+      randomized/hidden address). e.g. `deauthing Apple (aa:bb:…) from
+      HomeWiFi (11:22:…)`.
+- [ ] (optional polish) also surface `vendor` as its own column in the web
+      UI AP/STA tables. Files: `pwnagotchi/ui/web/*`.
 
 ### TODO-D2 — Handle pcap → pcapng path migration
 - [ ] When WiFiCapC switches from `.pcap` to `.pcapng` (WiFiCapC

@@ -16,6 +16,15 @@ from pwnagotchi.wificapc import WificapcClient
 RECOVERY_DATA_FILE = "/root/.pwnagotchi-recovery"
 
 
+def _label(name, mac):
+    """Human-friendly identifier for an AP/STA: the name (AP SSID, or the
+    OUI vendor WiFiCapC now resolves for clients, per Q1) with the MAC in
+    parens; falls back to the bare MAC when no usable name is known."""
+    if name and name != mac and name != "<hidden>":
+        return "%s (%s)" % (name, mac)
+    return mac
+
+
 class Agent(Automata):
     def __init__(self, view, config, keypair):
         Automata.__init__(self, config, view)
@@ -642,10 +651,8 @@ class Agent(Automata):
             self._view.on_assoc(ap)
             try:
                 logging.info(
-                    "sending association frame to %s (%s %s) on channel %d [%d clients], %d dBm...",
-                    ap["hostname"],
-                    ap["mac"],
-                    ap["vendor"],
+                    "sending association frame to %s on channel %d [%d clients], %d dBm...",
+                    _label(ap.get("hostname") or ap.get("vendor", ""), ap["mac"]),
                     ap["channel"],
                     len(ap["clients"]),
                     ap["rssi"],
@@ -670,12 +677,9 @@ class Agent(Automata):
             self._view.on_deauth(sta)
             try:
                 logging.info(
-                    "deauthing %s (%s) from %s (%s %s) on channel %d, %d dBm ...",
-                    sta["mac"],
-                    sta["vendor"],
-                    ap["hostname"],
-                    ap["mac"],
-                    ap["vendor"],
+                    "deauthing %s from %s on channel %d, %d dBm ...",
+                    _label(sta.get("vendor", ""), sta["mac"]),
+                    _label(ap.get("hostname") or ap.get("vendor", ""), ap["mac"]),
                     ap["channel"],
                     ap["rssi"],
                 )
