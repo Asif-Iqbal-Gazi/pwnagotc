@@ -7,10 +7,11 @@ name = "pwnagotchi"
 dynamic = ["version"]
 dependencies = [
     "PyYAML", "dbus-python", "file-read-backwards", "flask", "flask-cors",
-    "flask-wtf", "gpiozero", "inky", "pycryptodome", "pydrive2", "python-dateutil",
-    "requests", "rpi-lgpio", "rpi_hardware_pwm", "scapy", "setuptools", "smbus", "smbus2",
-    "spidev", "tomlkit", "toml", "tweepy", "pisugar",
-    # REMOVED: "numpy", "gast", "shimmy" - were AI training pipeline dependencies only
+    "flask-wtf", "gpiozero", "inky", "pycryptodome", "python-dateutil",
+    "requests", "rpi-lgpio", "rpi_hardware_pwm", "setuptools", "smbus",
+    "spidev", "tomlkit", "toml", "pisugar",
+    # REMOVED: numpy/gast/shimmy (AI training pipeline); scapy/pydrive2/tweepy/smbus2
+    # (v3.0.14 — verified unused: scapy only fed the dead extract_from_pcap()).
 ]
 
 requires-python = ">=3.11"

@@ -28,11 +28,14 @@ enabled = true
 
 [main.plugins.auto_backup] #More options availble https://github.com/wpa-2/Pwnagotchi-Plugins/blob/main/auto_backup_config.md
 enabled = true
-backup_location = "/etc/pwnagotchi/backups"
+# MUST live outside /etc/pwnagotchi: the plugin's default file list backs up
+# /etc/pwnagotchi/ itself, so a backup_location inside it makes each backup
+# re-tar the previous ones — the runaway that filled the SD to 9.7 GB.
+backup_location = "/home/pi/backups"
 
 [main.plugins.auto-update]
 enabled = true
-install = true
+install = false   # check + notify only; auto-installing releases on a fork risks pulling the wrong build
 interval = 1
 token = "" # Create a personal access token (classic) with scope set to public_repo to use the GitHub API
 
