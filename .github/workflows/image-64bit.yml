@@ -9,6 +9,14 @@ on:
 permissions:
   contents: write
 
+# A 30-90 min cross-arch build; if the same tag (or manual ref) is pushed
+# again, cancel the superseded run instead of racing two builds that both
+# publish to the same release. Different version tags are separate groups,
+# so they don't cancel each other.
+concurrency:
+  group: image-64bit-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -27,7 +35,7 @@ jobs:
       # exported image. The default GH runner has ~14 GB free; clearing
       # the language tool caches we never use buys us ~30 GB of headroom.
       - name: Free up disk space
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@v1.3.2
         with:
           tool-cache: false
           android: true
