@@ -25,11 +25,14 @@ def pwnagotchi_cli():
         logging.info("entering manual mode ...")
 
         agent.mode = 'manual'
-        # Manual mode skips agent.start(), but uploads (wpa-sec) still need
-        # the internet-reachability monitor running -- otherwise a pi left
-        # in manual mode on USB/BT tether never detects connectivity and
-        # never uploads its captures.
-        agent.start_internet_monitor()
+        # Manual = no active attack, but everything else runs: the daemon keeps
+        # capturing passively, and we still consume its events, update the UI,
+        # and upload when internet is available. So set up the consumer half
+        # (subscribe + session/stats + internet monitor) and tell the daemon to
+        # hold its attack; switching to auto turns it back on.
+        agent.start_consumer()
+        agent.set_attack(False)
+        agent.start_session_fetcher()
         agent.last_session.parse(agent.view(), args.skip_session)
         if not args.skip_session:
             logging.info(

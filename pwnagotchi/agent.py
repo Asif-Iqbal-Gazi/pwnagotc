@@ -374,16 +374,35 @@ class Agent(Automata):
         except Exception as e:
             logging.warning("wificapc re-init after reconnect: %s", e)
 
-    def start(self):
+    def set_attack(self, enabled):
+        """Tell the daemon to run (auto) or hold (manual) its --auto attack.
+        Capture + hopping + upload continue either way; this only gates the
+        active assoc/deauth. Best-effort — a daemon without set_attack
+        (not --auto) just ignores it."""
+        try:
+            self._wificapc.cmd("set_attack", enabled=1 if enabled else 0)
+            logging.info("wificapc: attack %s", "enabled" if enabled else "disabled")
+        except Exception as e:
+            logging.debug("wificapc set_attack: %s", e)
+
+    def start_consumer(self):
+        """The consumer half shared by auto and manual: connect, subscribe to
+        the daemon's events, learn whether it self-drives. We always consume +
+        upload what the daemon captures, in either mode."""
         self._wait_wificapc()
         self._register_events()
         self._wificapc.on_reconnect(self._on_wificapc_reconnect)
+        self._detect_daemon_auto()
+
+    def start(self):
         self.set_starting()
-        # AU6: if the daemon drives itself, don't bring up / drive it — just
-        # consume its events + stats and upload. Otherwise do the normal
-        # iface_set -> monitor_on -> recon_start -> hop_start bring-up.
-        if not self._detect_daemon_auto():
+        self.start_consumer()
+        # AU6: if the daemon drives itself, don't bring it up / drive it.
+        # Otherwise do the normal iface_set -> monitor_on -> recon_start ->
+        # hop_start bring-up.
+        if not self._daemon_auto:
             self.start_monitor_mode()
+        self.set_attack(True)          # auto mode: attacks on
         self._load_recovery_data()
         self.start_session_fetcher()
         self.next_epoch()
