@@ -118,6 +118,20 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
       Mirrors the `stage3/01-wificapc/01-run-chroot.sh` pattern.
 - Files: `stage3/03-pwnagotchi/01-run-chroot.sh`.
 
+### TODO-A6 — Event-driven internet detection + reliable uploads ✅ v3.0.18 (07c1e2da)
+- [x] Internet-reachability monitor now starts in **manual mode** too
+      (`start_internet_monitor()` called from both `cli.do_manual_mode`
+      and the auto path) — previously manual mode never probed, so a
+      USB/BT-tethered pi left in manual never uploaded.
+- [x] Netlink watcher (`RTMGRP_LINK|IPV4_IFADDR|IPV6_IFADDR`) triggers an
+      immediate probe on interface/address change; periodic poll relaxed
+      to a 120s safety net for silent far-side drops.
+- [x] wpa-sec `_drain_uploads()` runs on the event, on a fresh capture,
+      and on a 60s background loop (works in manual mode) — fixes
+      transition-only uploads that left captures queued forever.
+- Files: `pwnagotchi/agent.py`, `pwnagotchi/cli.py`,
+      `pwnagotchi/plugins/default/wpa-sec.py`.
+
 ---
 
 ## How to use this file
