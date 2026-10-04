@@ -13,6 +13,28 @@ import pwnagotchi
 import pwnagotchi.plugins as plugins
 from pwnagotchi.utils import StatusFile, parse_version as version_to_tuple
 
+# Default deployment venv for the image build. Overridable via the plugin's
+# `venv` option so non-standard layouts aren't hardcoded (A1).
+DEFAULT_VENV = '/opt/.pwn'
+
+
+def _read_project_name(source_path):
+    """Return the package name declared in <source_path>/pyproject.toml
+    (PEP 621 [project].name, or Poetry's [tool.poetry].name), or None if the
+    file is missing/unparseable. Used to sanity-check a source archive before
+    pip-installing it, so a wrong/corrupt download can't clobber the venv (A1).
+    """
+    import tomllib
+    try:
+        with open(os.path.join(source_path, 'pyproject.toml'), 'rb') as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    name = (data.get('project', {}) or {}).get('name')
+    if not name:
+        name = ((data.get('tool', {}) or {}).get('poetry', {}) or {}).get('name')
+    return name
+
 
 # ---------------------------------------------------------------------------
 # Per-target failure isolation: each entry in TARGETS is checked and
@@ -168,7 +190,7 @@ def _verify_native_zip(name, path, source_path, display, update):
 # ---------------------------------------------------------------------------
 
 
-def install_native_binary(update, display):
+def install_native_binary(update, display, venv=DEFAULT_VENV):
     """Stops the systemd unit, replaces the binary, restarts the unit."""
     name = update['repo'].split('/')[1]
     binary = update.get('binary') or name.lower()
@@ -204,7 +226,7 @@ def install_native_binary(update, display):
     subprocess.run(['service', update['service'], 'start'], check=False)
 
 
-def install_wheel(update, display):
+def install_wheel(update, display, venv=DEFAULT_VENV):
     """Pip-install a Python wheel into the deployed venv."""
     name = update['repo'].split('/')[1]
     path = make_path_for(name)
@@ -221,21 +243,22 @@ def install_wheel(update, display):
     # to date (e.g. running off a tagged checkout vs the released tag).
     subprocess.run(
         ["bash", "-c",
-         f"source /opt/.pwn/bin/activate && pip install --force-reinstall '{target}'"],
+         f"source '{venv}/bin/activate' && pip install --force-reinstall '{target}'"],
         check=True,
     )
     shutil.rmtree(path, ignore_errors=True)
 
 
-def install_source_archive(update, display):
+def install_source_archive(update, display, venv=DEFAULT_VENV):
     """Fallback path: download the GitHub auto-archive zip, unpack,
     pip-install the resulting source directory.
 
-    TODO(pwnagotchi self-update): this assumes /opt/.pwn is the venv
-    and that the repo's pyproject.toml package name matches the
-    running module ("pwnagotchi" vs the repo "pwnagotc"). Both hold
-    for the current image build but should be made explicit before
-    users on non-standard layouts can rely on it.
+    A1: the venv is passed in (from the plugin's `venv` option, default
+    /opt/.pwn) rather than hardcoded, and the unpacked source is validated
+    to be a real Python package (its pyproject.toml must declare a name)
+    before we pip-install it, so a corrupt/wrong archive can't clobber the
+    venv. The declared name may differ from the repo slug ("pwnagotchi" vs
+    the "pwnagotc" repo), which is expected.
     """
     name = update['repo'].split('/')[1]
     path = make_path_for(name)
@@ -255,13 +278,21 @@ def install_source_archive(update, display):
         # GitHub auto-archives unpack to <repo>-<tag-without-v>/
         source_path = f"{source_path}-{update['available']}"
 
+    # A1: refuse to pip-install something that isn't a real package.
+    proj = _read_project_name(source_path)
+    if not proj:
+        raise RuntimeError(
+            f"{source_path}: no valid pyproject.toml with a package name, "
+            f"refusing to install")
+    logging.info("[update] %s: source archive declares package '%s'", name, proj)
+
     if display:
         display.update(force=True, new_data={
             'status': f'Installing {name} {update["available"]} ...'
         })
     subprocess.run(
         ["bash", "-c",
-         f"source /opt/.pwn/bin/activate && pip install --force-reinstall '{source_path}'"],
+         f"source '{venv}/bin/activate' && pip install --force-reinstall '{source_path}'"],
         check=True,
     )
     shutil.rmtree(source_path, ignore_errors=True)
@@ -413,7 +444,7 @@ class AutoUpdate(plugins.Plugin):
                     continue
                 try:
                     plugins.on('updating')
-                    installer(update, display)
+                    installer(update, display, self.options.get('venv', DEFAULT_VENV))
                     num_installed += 1
                     logging.info("[update] %s: installed %s",
                                  update['name'], update['available'])

@@ -32,6 +32,10 @@ class Agent(Automata):
         self._keypair = keypair
         self._started_at = time.time()
         self._current_channel = 0
+        # D3: last `stats` reply from the daemon (current_channel, hopping,
+        # attack_active, pmkid_only, iface_mode, frame counters, ...),
+        # refreshed on the 5s stats tick. Exposed for plugins/UI.
+        self._daemon_stats = {}
         self._tot_aps = 0
         self._aps_on_channel = 0
         self._supported_channels = utils.iface_channels(config["main"]["iface"])
@@ -294,6 +298,7 @@ class Agent(Automata):
             logging.warning("wificapc set_mac_rand: %s", e)
 
         self.push_ttls()
+        self._narrow_subscriptions()
 
         logging.info("supported channels: %s", self._supported_channels)
         logging.info("handshakes will be collected inside %s", cfg["handshakes"])
@@ -314,6 +319,20 @@ class Agent(Automata):
             )
         except Exception as e:
             logging.warning("wificapc set_ttls: %s", e)
+
+    def _narrow_subscriptions(self):
+        """D6: we act only on ap/sta/handshake events, but the daemon
+        broadcasts an iface.channel tick on every hop (~4/sec) plus
+        iface.mode. Unsubscribe from those so we stop decoding JSON we
+        never use. Best-effort: daemons without X4's subscribe/unsubscribe
+        (pre-v0.7.0) reply 'unknown command' and we keep getting everything,
+        which is harmless.
+        """
+        try:
+            self._wificapc.cmd("unsubscribe", events="iface.channel,iface.mode")
+            logging.info("wificapc: unsubscribed from iface.* events (D6)")
+        except Exception as e:
+            logging.debug("wificapc unsubscribe (older daemon?): %s", e)
 
     def _on_wificapc_reconnect(self):
         logging.info("wificapc reconnected, re-initializing...")
@@ -414,6 +433,29 @@ class Agent(Automata):
     def _update_uptime(self):
         secs = pwnagotchi.uptime()
         self._view.set("uptime", utils.secs_to_hhmmss(secs))
+
+    def _update_daemon_stats(self):
+        """D3: poll the daemon's `stats` and reflect ground truth in the UI.
+
+        The daemon knows the live hop channel; the agent otherwise only
+        knows the channel from its own last set_channel echo, which is "*"
+        (or stale) while hopping. We mirror the daemon's current_channel
+        into the view when we're not parked on one ourselves, and stash the
+        whole reply on self._daemon_stats for plugins.
+        """
+        # cmd() returns the reply's `data` dict directly and raises on
+        # failure (caught by the _fetch_stats wrapper).
+        data = self._wificapc.cmd("stats")
+        if not isinstance(data, dict):
+            return
+        self._daemon_stats = data
+
+        # Only touch the channel display when we aren't parked on a channel
+        # ourselves (i.e. during hopping, _current_channel == 0).
+        if self._current_channel == 0:
+            ch = data.get("current_channel")
+            if isinstance(ch, int) and ch > 0:
+                self._view.set("channel", "%d" % ch)
 
     def _update_counters(self):
         self._tot_aps = len(self._access_points)
@@ -614,6 +656,10 @@ class Agent(Automata):
                 self._update_counters()
             except Exception as err:
                 logging.error("[agent:_fetch_stats] update_counters: %s", repr(err))
+            try:
+                self._update_daemon_stats()
+            except Exception as err:
+                logging.error("[agent:_fetch_stats] update_daemon_stats: %s", repr(err))
             try:
                 self._update_handshakes(0)
             except Exception as err:

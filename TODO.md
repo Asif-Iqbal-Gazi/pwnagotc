@@ -37,8 +37,8 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
   `pwnagotchi/plugins/default/gps.py` (verify), `pwnagotchi/agent.py`
   (only logging).
 
-### TODO-D3 — Surface daemon stats in the agent UI
-- [ ] Once WiFiCapC's `stats` reply expands (WiFiCapC TODO-Q4) to
+### TODO-D3 — Surface daemon stats in the agent UI ✅ v3.0.19
+- [x] Once WiFiCapC's `stats` reply expands (WiFiCapC TODO-Q4) to
       include `current_channel`, `hopping`, `attack_active`,
       `iface_mode`, the agent can poll `stats` (e.g. once per epoch)
       and reflect it in `_view`. Today the UI infers channel from
@@ -52,8 +52,8 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
       daemon and drops the local sqlite row.
 - Files: `pwnagotchi/plugins/default/wpa-sec.py`.
 
-### TODO-D5 — Persistent recon table reload
-- [ ] When WiFiCapC starts persisting AP/STA state across restarts
+### TODO-D5 — Persistent recon table reload ✅ v3.0.19 (verified)
+- [x] When WiFiCapC starts persisting AP/STA state across restarts
       (WiFiCapC TODO-R1), the agent needs to handle the wave of
       `ap.new`/`sta.new` events that arrive immediately after
       reconnect. Today reconnect already works (we emit `ap.new`
@@ -61,8 +61,8 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
       just verify nothing expects "fresh" implies "first-ever".
 - Files: `pwnagotchi/agent.py`, `pwnagotchi/wificapc.py`.
 
-### TODO-D6 — Subscribe to only the events we use
-- [ ] When WiFiCapC implements per-client subscribe/unsubscribe
+### TODO-D6 — Subscribe to only the events we use ✅ v3.0.19
+- [x] When WiFiCapC implements per-client subscribe/unsubscribe
       (WiFiCapC TODO-X4), narrow the agent's subscriptions to
       `ap.new`, `ap.lost`, `sta.new`, `sta.lost`, `handshake.done`.
       Today we receive every `iface.channel` tick at 250 ms hop
@@ -71,8 +71,8 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
 
 ## Agent-only items (no daemon dependency)
 
-### TODO-A1 — Confirm pwnagotchi self-update path
-- [ ] Resolve the `TODO(pwnagotchi self-update)` left in
+### TODO-A1 — Confirm pwnagotchi self-update path ✅ v3.0.19
+- [x] Resolve the `TODO(pwnagotchi self-update)` left in
       `auto-update.py::install_source_archive`: read the venv path
       from config (don't hardcode `/opt/.pwn`), validate the
       package name against `pyproject.toml` before pip-installing.
