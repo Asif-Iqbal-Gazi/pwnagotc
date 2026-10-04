@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 source /usr/bin/pwnlib
 
+# The environment owns the brcmfmac quirk: reload the driver and create the
+# monitor vif (wlan0mon). wificapc then runs self-driving (--auto) and reuses
+# that vif — it detects channels, hops, attacks and writes handshakes on its
+# own, independent of whether the pwnagotchi agent is in auto or manual mode.
+# (The agent, via AU6, sees stats.auto and stays a passive consumer.)
 reload_brcm
 start_monitor_interface
 
-exec /usr/local/bin/wificapc
+exec /usr/local/bin/wificapc --auto -i wlan0
