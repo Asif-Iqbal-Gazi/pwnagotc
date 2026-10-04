@@ -493,6 +493,13 @@ class SessionStats(plugins.Plugin):
     DEFAULT_SAVE_PATH = (
         "/home/pi/pwnagotchi/sessions/"  # Standard location for user data
     )
+    # The stats dict is rewritten to disk whole on every change, and the
+    # default save dir is a small (~5 MB) RAM disk. Left unbounded it grows
+    # until the fs fills and the agent crash-loops (it can't write its web
+    # frame). Bound both the in-memory window and the number of session files
+    # so it is self-limiting and can never fill the save fs.
+    MAX_STATS_ENTRIES = 500   # rolling window of stat samples kept in the JSON
+    MAX_SESSION_FILES = 3     # most-recent session JSONs to retain
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -507,6 +514,29 @@ class SessionStats(plugins.Plugin):
         # Use default save path if not configured
         save_dir = self.options.get("save_directory", self.DEFAULT_SAVE_PATH)
         os.makedirs(save_dir, exist_ok=True)
+        # Housekeeping before we start: drop orphaned atomic-write temp files
+        # from any earlier aborted (ENOSPC) write, and keep only the most
+        # recent session JSONs, so a small RAM-disk save dir cannot fill up
+        # across many reboots.
+        try:
+            existing = os.listdir(save_dir)
+            for f in existing:
+                if f.startswith("tmp") and not f.endswith(".json"):
+                    try:
+                        os.remove(os.path.join(save_dir, f))
+                    except OSError:
+                        pass
+            old_sessions = sorted(
+                f for f in existing
+                if f.startswith("stats_") and f.endswith(".json")
+            )
+            for f in old_sessions[: -self.MAX_SESSION_FILES]:
+                try:
+                    os.remove(os.path.join(save_dir, f))
+                except OSError:
+                    pass
+        except OSError:
+            pass
         self.session_name = "stats_{}.json".format(
             datetime.now().strftime("%Y_%m_%d_%H_%M")
         )
@@ -535,6 +565,7 @@ class SessionStats(plugins.Plugin):
                 historical_data = last_session.data_field_or("data", default=dict())
                 if historical_data:
                     self.stats.update(historical_data)
+                    self._prune_stats()
                     logging.info(
                         f"Loaded {len(historical_data)} historical data points from {last_session_file}"
                     )
@@ -587,6 +618,20 @@ class SessionStats(plugins.Plugin):
             logging.warning(f"Could not collect stats: {e}")
             return None
 
+    def _prune_stats(self):
+        """Keep only the most recent MAX_STATS_ENTRIES so the dict/JSON stays
+        bounded regardless of how long the session runs."""
+        excess = len(self.stats) - self.MAX_STATS_ENTRIES
+        if excess > 0:
+            for old in list(self.stats)[:excess]:
+                del self.stats[old]
+
+    def _record(self, timestamp, entry):
+        """Append one stats sample, prune to the rolling window, and persist."""
+        self.stats[timestamp] = entry
+        self._prune_stats()
+        self.session.update(data={"data": self.stats})
+
     def _realtime_loop(self):
         """Background thread that collects stats periodically without waiting for epochs"""
         update_interval = self.options.get(
@@ -620,9 +665,8 @@ class SessionStats(plugins.Plugin):
 
                         # Only update if this is new data or initialized
                         if not self.initialized:
-                            self.stats[timestamp] = stats_entry
                             self.initialized = True
-                            self.session.update(data={"data": self.stats})
+                            self._record(timestamp, stats_entry)
                             logging.info(
                                 f"Session-stats initialized (realtime): {stats_entry['num_peers']} networks, "
                                 f"{stats_entry['num_handshakes']} handshakes"
@@ -638,8 +682,7 @@ class SessionStats(plugins.Plugin):
                                 or stats_entry["num_handshakes"]
                                 != last_stats.get("num_handshakes", 0)
                             ):
-                                self.stats[timestamp] = stats_entry
-                                self.session.update(data={"data": self.stats})
+                                self._record(timestamp, stats_entry)
 
             except Exception as e:
                 logging.warning(f"Error in realtime stats loop: {e}")
@@ -666,8 +709,7 @@ class SessionStats(plugins.Plugin):
             # Add epoch data with high-resolution timestamp
             current_time = datetime.now()
             timestamp = current_time.strftime("%H:%M:%S.%f")[:-3]
-            self.stats[timestamp] = stats_entry
-            self.session.update(data={"data": self.stats})
+            self._record(timestamp, stats_entry)
 
             if not self.initialized:
                 self.initialized = True

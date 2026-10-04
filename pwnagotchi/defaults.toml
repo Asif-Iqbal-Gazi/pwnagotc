@@ -117,7 +117,11 @@ path-debug = "/etc/pwnagotchi/log/pwnagotchi-debug.log"
 
 [main.log.rotation]
 enabled = true
-size = "10M"
+# /etc/pwnagotchi/log is a ~15 MB zram disk holding BOTH pwnagotchi.log and
+# pwnagotchi-debug.log, so a 10M rotation threshold (20M for the pair) fills
+# the disk before rotation ever triggers -> ENOSPC. 4M keeps the pair
+# (+ their .gz backups) comfortably under 15M.
+size = "4M"
 
 [personality]
 advertise = true
