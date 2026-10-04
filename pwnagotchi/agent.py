@@ -36,6 +36,10 @@ class Agent(Automata):
         # attack_active, pmkid_only, iface_mode, frame counters, ...),
         # refreshed on the 5s stats tick. Exposed for plugins/UI.
         self._daemon_stats = {}
+        # AU6: True when the daemon runs itself (wificapc --auto). We then
+        # become a passive consumer — no recon/hop/assoc/deauth driving — so
+        # we don't fight the daemon's own self-driving.
+        self._daemon_auto = False
         self._tot_aps = 0
         self._aps_on_channel = 0
         self._supported_channels = utils.iface_channels(config["main"]["iface"])
@@ -334,8 +338,28 @@ class Agent(Automata):
         except Exception as e:
             logging.debug("wificapc unsubscribe (older daemon?): %s", e)
 
+    def daemon_auto(self):
+        """AU6: True when the daemon is self-driving (wificapc --auto)."""
+        return self._daemon_auto
+
+    def _detect_daemon_auto(self):
+        """Query the daemon's mode once so we know whether to drive it or just
+        observe. Best-effort: older daemons (no `auto` in stats) -> False."""
+        try:
+            data = self._wificapc.cmd("stats")
+            self._daemon_auto = bool(isinstance(data, dict) and data.get("auto"))
+        except Exception as e:
+            self._daemon_auto = False
+            logging.debug("wificapc stats (auto detect): %s", e)
+        if self._daemon_auto:
+            logging.info("wificapc is self-driving (--auto); agent in consumer mode "
+                         "(no recon/attack driving)")
+        return self._daemon_auto
+
     def _on_wificapc_reconnect(self):
         logging.info("wificapc reconnected, re-initializing...")
+        if self._detect_daemon_auto():
+            return   # daemon drives itself; nothing to re-init
         self.start_monitor_mode()
         try:
             hop_channels = (
@@ -355,7 +379,11 @@ class Agent(Automata):
         self._register_events()
         self._wificapc.on_reconnect(self._on_wificapc_reconnect)
         self.set_starting()
-        self.start_monitor_mode()
+        # AU6: if the daemon drives itself, don't bring up / drive it — just
+        # consume its events + stats and upload. Otherwise do the normal
+        # iface_set -> monitor_on -> recon_start -> hop_start bring-up.
+        if not self._detect_daemon_auto():
+            self.start_monitor_mode()
         self._load_recovery_data()
         self.start_session_fetcher()
         self.next_epoch()

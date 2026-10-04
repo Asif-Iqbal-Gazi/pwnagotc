@@ -54,6 +54,16 @@ def pwnagotchi_cli():
 
         while True:
             try:
+                # AU6: when the daemon is self-driving (wificapc --auto) it owns
+                # recon/hop/attack. We must not drive it too — just let epochs
+                # tick while our event handlers + wpa-sec upload consume what it
+                # captures. Driving here would fight the daemon (double hop_start,
+                # redundant assoc/deauth).
+                if agent.daemon_auto():
+                    time.sleep(5)
+                    agent.next_epoch()
+                    continue
+
                 # recon on all channels
                 agent.recon()
                 # get nearby access points grouped by channel
