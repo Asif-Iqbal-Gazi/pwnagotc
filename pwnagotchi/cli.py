@@ -25,6 +25,11 @@ def pwnagotchi_cli():
         logging.info("entering manual mode ...")
 
         agent.mode = 'manual'
+        # Manual mode skips agent.start(), but uploads (wpa-sec) still need
+        # the internet-reachability monitor running -- otherwise a pi left
+        # in manual mode on USB/BT tether never detects connectivity and
+        # never uploads its captures.
+        agent.start_internet_monitor()
         agent.last_session.parse(agent.view(), args.skip_session)
         if not args.skip_session:
             logging.info(

@@ -46,7 +46,8 @@ class Agent(Automata):
         self._stas = {}  # mac -> sta dict
         self._access_points = []
 
-        # Internet-reachability probe: periodic DNS check that drives the
+        # Internet-reachability probe: netlink-triggered (plus a relaxed
+        # safety-net poll) DNS+TCP check that drives the
         # plugins.on('internet_available') / plugins.on('internet_unavailable')
         # transitions. Plugins should subscribe to those events instead of
         # firing off network calls speculatively (the bt-tether per-epoch
@@ -54,6 +55,10 @@ class Agent(Automata):
         # whether DNS actually worked, which is what burned wpa-sec uploads).
         self._internet_lock = threading.Lock()
         self._internet_ok = None  # None = first probe pending
+        # Set by the netlink watcher (and startup) to ask the monitor to
+        # probe now instead of waiting out the relaxed poll interval.
+        self._probe_wakeup = threading.Event()
+        self._internet_monitor_started = False
 
         # Empty peers dict kept for automata mood compatibility (no mesh)
         self._peers = {}
@@ -488,27 +493,86 @@ class Agent(Automata):
         finally:
             socket.setdefaulttimeout(None)
 
+    def _run_probe_and_fire(self):
+        """Probe once, update cached state, and fire the transition event
+        on a change. Shared by the netlink-driven and the periodic paths."""
+        ok = self._probe_internet()
+        transitioned = False
+        with self._internet_lock:
+            prev = self._internet_ok
+            if ok != prev:
+                self._internet_ok = ok
+                transitioned = True
+        if transitioned:
+            event = "internet_available" if ok else "internet_unavailable"
+            logging.info("agent: %s (probe -> %s)", event, ok)
+            try:
+                plugins.on(event, self)
+            except Exception:
+                logging.exception("agent: %s plugin handler error", event)
+        return ok
+
+    def trigger_internet_probe(self):
+        """Ask the internet monitor to re-probe now (e.g. the netlink
+        watcher saw an interface/address change)."""
+        self._probe_wakeup.set()
+
     def _internet_loop(self):
-        # Probe interval: short enough to react to a phone toggling data
-        # off, long enough to not hammer the DNS resolver. 30s is a
-        # reasonable default; user can tune via config if needed.
-        interval = int(self._config.get("main", {}).get("internet_probe_interval", 30))
+        # Event-driven with a relaxed safety-net poll. The netlink watcher
+        # (_netlink_loop) wakes us the instant an interface/address changes
+        # -- a USB gadget being plugged in, or bt-tether's bnep0 coming up --
+        # so uploads react immediately instead of on the next tick. The
+        # periodic timeout still re-probes to catch the cases that produce
+        # no netlink event: a link that stays up while the far side loses
+        # internet (a phone toggling mobile data, the USB host dropping its
+        # own uplink). Hence a long default here -- the event covers the
+        # common case; this only has to notice silent drops/restores.
+        interval = int(self._config.get("main", {}).get("internet_probe_interval", 120))
+        debounce = float(self._config.get("main", {}).get("internet_probe_debounce", 2.0))
+        # Probe once at startup so the state isn't stuck at None until the
+        # first event/timeout.
+        self._run_probe_and_fire()
         while True:
-            ok = self._probe_internet()
-            transitioned = False
-            with self._internet_lock:
-                prev = self._internet_ok
-                if ok != prev:
-                    self._internet_ok = ok
-                    transitioned = True
-            if transitioned:
-                event = "internet_available" if ok else "internet_unavailable"
-                logging.info("agent: %s (probe -> %s)", event, ok)
-                try:
-                    plugins.on(event, self)
-                except Exception:
-                    logging.exception("agent: %s plugin handler error", event)
-            time.sleep(interval)
+            woke = self._probe_wakeup.wait(interval)
+            if woke:
+                # Let a freshly-appeared link finish addressing/routing
+                # (DHCP lease, default route) before probing; coalesce any
+                # burst of events that arrive during the settle window.
+                time.sleep(debounce)
+            self._probe_wakeup.clear()
+            self._run_probe_and_fire()
+
+    def _netlink_loop(self):
+        """Watch RTNETLINK for link/address changes and poke the internet
+        probe when one happens, so a newly-connected uplink is noticed at
+        once rather than on the next poll. Pure stdlib: a raw AF_NETLINK
+        socket subscribed to the link + IPv4/IPv6 address multicast groups.
+        Best-effort -- if it can't be set up we just lean on the poll."""
+        RTMGRP_LINK = 0x1
+        RTMGRP_IPV4_IFADDR = 0x10
+        RTMGRP_IPV6_IFADDR = 0x100
+        try:
+            sock = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, 0)  # NETLINK_ROUTE
+            # Pin to blocking: a new socket inherits socket.getdefaulttimeout(),
+            # which _probe_internet transiently flips to 2s -- if we're created
+            # mid-probe the recv below would otherwise time out every 2s,
+            # spamming errors and backing off instead of blocking for events.
+            sock.settimeout(None)
+            sock.bind((0, RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR))
+        except OSError:
+            logging.exception("agent: netlink watcher unavailable, relying on poll")
+            return
+        logging.info("agent: netlink interface watcher active")
+        while True:
+            try:
+                sock.recv(8192)
+            except OSError:
+                logging.exception("agent: netlink recv failed, backing off")
+                time.sleep(5)
+                continue
+            # Any link/addr change -> re-check connectivity (debounced in
+            # _internet_loop so a burst collapses into a single probe).
+            self.trigger_internet_probe()
 
     def is_internet_reachable(self):
         """Cheap accessor for plugins that want to read the cached state
@@ -516,13 +580,29 @@ class Agent(Automata):
         with self._internet_lock:
             return bool(self._internet_ok)
 
+    def start_internet_monitor(self):
+        """Start the internet-reachability monitor + netlink watcher.
+
+        Called from both the auto and the manual startup paths (and
+        idempotent, so calling it from both is harmless): uploads need to
+        work in manual mode too, but manual mode never calls start()/
+        start_session_fetcher(), which is why a USB/BT-tethered pwnagotchi
+        left in manual mode never uploaded anything."""
+        if self._internet_monitor_started:
+            return
+        self._internet_monitor_started = True
+        threading.Thread(
+            target=self._internet_loop, args=(), name="InternetMonitor", daemon=True
+        ).start()
+        threading.Thread(
+            target=self._netlink_loop, args=(), name="NetlinkWatcher", daemon=True
+        ).start()
+
     def start_session_fetcher(self):
         threading.Thread(
             target=self._fetch_stats, args=(), name="Session Fetcher", daemon=True
         ).start()
-        threading.Thread(
-            target=self._internet_loop, args=(), name="InternetMonitor", daemon=True
-        ).start()
+        self.start_internet_monitor()
 
     def _fetch_stats(self):
         while True:

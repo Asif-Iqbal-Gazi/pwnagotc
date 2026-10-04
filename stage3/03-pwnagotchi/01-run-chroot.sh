@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-PWNAGOTCHI_TAG=v3.0.17
+PWNAGOTCHI_TAG=v3.0.18
 
 echo -e "\e[32m### Building and installing pwnagotchi ${PWNAGOTCHI_TAG} ###\e[0m"
 cd /opt

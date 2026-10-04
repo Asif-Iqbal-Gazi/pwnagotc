@@ -5,7 +5,7 @@ import requests
 import sqlite3
 from datetime import datetime
 from enum import Enum
-from threading import Lock
+from threading import Lock, Event, Thread
 from pwnagotchi.utils import remove_whitelisted
 from pwnagotchi import plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -27,9 +27,14 @@ class WpaSec(plugins.Plugin):
     def __init__(self):
         self.ready = False
         self.lock = Lock()
-        
+
         self.options = dict()
-        
+        # Last agent we were handed, so the background drain can run without
+        # waiting for an event; and a wakeup so a fresh capture (or a
+        # reconnect) drains promptly instead of on the next tick.
+        self._agent = None
+        self._drain_wakeup = Event()
+
         self._init_db()
         
     def _init_db(self):
@@ -63,7 +68,32 @@ class WpaSec(plugins.Plugin):
         self.skip_until_reload = set()
 
         self.ready = True
+        # Background drain: uploads were historically only triggered on the
+        # internet_available *transition*, so a handshake captured while the
+        # link was already up (the normal USB/BT-tether case) sat in the
+        # queue forever. This loop re-drains the TOUPLOAD backlog whenever
+        # we're online -- woken immediately on a fresh capture / reconnect,
+        # and otherwise on a relaxed interval -- and works in manual mode
+        # too (it doesn't depend on epochs firing).
+        self._drain_interval = int(self.options.get('upload_interval', 60))
+        Thread(target=self._drain_loop, name="WpaSecDrain", daemon=True).start()
         logging.info("WPA_SEC: plugin loaded.")
+
+    def _drain_loop(self):
+        while True:
+            self._drain_wakeup.wait(self._drain_interval)
+            self._drain_wakeup.clear()
+            agent = self._agent
+            if agent is None or not self.ready:
+                continue
+            try:
+                if not agent.is_internet_reachable():
+                    continue
+            except Exception:
+                # Older agent without the accessor: fall back to trying,
+                # the upload's own timeout bounds the cost.
+                pass
+            self._drain_uploads(agent)
         
     def on_handshake(self, agent, filename, access_point, client_station):
         config = agent.config()
@@ -91,10 +121,22 @@ class WpaSec(plugins.Plugin):
             ''', (upload_path, self.Status.TOUPLOAD.value, self.Status.INVALID.value))
         db_conn.close()
 
+        # Nudge the drain so a capture taken while already online uploads
+        # now rather than waiting for the next internet_available flap.
+        self._agent = agent
+        self._drain_wakeup.set()
+
     def on_internet_available(self, agent):
         """
-        Called when there's internet connectivity
+        Called on the internet_available transition -- drain immediately.
         """
+        self._drain_uploads(agent)
+
+    def _drain_uploads(self, agent):
+        """Upload the TOUPLOAD backlog and refresh cracked results. Safe to
+        call from the transition event, a fresh capture, or the periodic
+        drain -- the lock serializes concurrent callers."""
+        self._agent = agent
         if not self.ready or self.lock.locked():
             return
 
