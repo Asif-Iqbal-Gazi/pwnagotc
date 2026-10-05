@@ -26,13 +26,14 @@ def pwnagotchi_cli():
 
         agent.mode = 'manual'
         # Manual = no active attack, but everything else runs: the daemon keeps
-        # capturing passively, and we still consume its events, update the UI,
-        # and upload when internet is available. So set up the consumer half
-        # (subscribe + session/stats + internet monitor) and tell the daemon to
-        # hold its attack; switching to auto turns it back on.
+        # capturing passively, we consume its events (so handshakes get queued)
+        # and upload when internet is available. Keep it light — just the
+        # consumer + the internet monitor (NOT the full session fetcher, whose
+        # view churn conflicts with the static manual-mode screen) — and tell
+        # the daemon to hold its attack; switching to auto turns it back on.
         agent.start_consumer()
         agent.set_attack(False)
-        agent.start_session_fetcher()
+        agent.start_internet_monitor()
         agent.last_session.parse(agent.view(), args.skip_session)
         if not args.skip_session:
             logging.info(
@@ -45,7 +46,12 @@ def pwnagotchi_cli():
                     agent.last_session.max_reward))
 
         while True:
-            display.on_manual_mode(agent.last_session)
+            # Never let a transient UI error (e.g. a concurrent view update)
+            # crash the process — mirror do_auto_mode's resilient loop.
+            try:
+                display.on_manual_mode(agent.last_session)
+            except Exception as e:
+                logging.exception("main loop exception (%s)", e)
             time.sleep(5)
 
     def do_auto_mode(agent):

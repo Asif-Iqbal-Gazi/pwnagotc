@@ -247,6 +247,49 @@ class Agent(Automata):
         plugins.on("wifi_update", self, aps)
         self._epoch.observe(aps, [])
 
+    def _sync_from_daemon(self):
+        """Consumer mode (daemon --auto owns recon): rebuild our AP/STA view
+        from the daemon's authoritative snapshot. `ap.new` only fires on an
+        AP's first discovery and is never replayed, so an agent that connects
+        after the daemon populated its table would otherwise see nothing. This
+        also self-heals missed events and reconnects."""
+        try:
+            aps_reply  = self._wificapc.cmd("list_aps")
+            stas_reply = self._wificapc.cmd("list_stas")
+        except Exception as e:
+            logging.debug("wificapc list_aps/list_stas: %s", e)
+            return
+        if not isinstance(aps_reply, dict) or not isinstance(stas_reply, dict):
+            return
+        new_aps = {}
+        for ap in (aps_reply.get("items") or []):
+            bssid = (ap.get("bssid") or "").lower()
+            if not bssid:
+                continue
+            new_aps[bssid] = {
+                "mac": bssid,
+                "hostname": ap.get("ssid", ""),
+                "channel": ap.get("channel", 0),
+                "rssi": ap.get("rssi", 0),
+                "vendor": ap.get("vendor", ""),
+                "encryption": "WPA2",
+                "clients": [],
+            }
+        new_stas = {}
+        for sta in (stas_reply.get("items") or []):
+            mac = (sta.get("mac") or "").lower()
+            if not mac:
+                continue
+            entry = {"mac": mac, "vendor": sta.get("vendor", "")}
+            new_stas[mac] = entry
+            ap_bssid = (sta.get("ap_bssid") or "").lower()
+            if ap_bssid and ap_bssid in new_aps:
+                new_aps[ap_bssid]["clients"].append(entry)
+        with self._tables_lock:
+            self._aps = new_aps
+            self._stas = new_stas
+        self._rebuild_access_points()
+
     # ---- startup ----
 
     def _wait_wificapc(self):
@@ -359,7 +402,12 @@ class Agent(Automata):
     def _on_wificapc_reconnect(self):
         logging.info("wificapc reconnected, re-initializing...")
         if self._detect_daemon_auto():
-            return   # daemon drives itself; nothing to re-init
+            # Daemon self-drives. Re-apply our attack policy (a restarted
+            # daemon defaults attack-on, so manual must re-assert off) and
+            # re-seed our view from its table.
+            self.set_attack(self.mode != 'manual')
+            self._sync_from_daemon()
+            return
         self.start_monitor_mode()
         try:
             hop_channels = (
@@ -393,6 +441,8 @@ class Agent(Automata):
         self._register_events()
         self._wificapc.on_reconnect(self._on_wificapc_reconnect)
         self._detect_daemon_auto()
+        if self._daemon_auto:
+            self._sync_from_daemon()   # seed from the daemon's current table
 
     def start(self):
         self.set_starting()
@@ -707,6 +757,11 @@ class Agent(Automata):
                 self._update_daemon_stats()
             except Exception as err:
                 logging.error("[agent:_fetch_stats] update_daemon_stats: %s", repr(err))
+            try:
+                if self._daemon_auto:
+                    self._sync_from_daemon()
+            except Exception as err:
+                logging.error("[agent:_fetch_stats] sync_from_daemon: %s", repr(err))
             try:
                 self._update_handshakes(0)
             except Exception as err:
