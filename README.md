@@ -13,9 +13,23 @@ ______                      _____       _   _____ _
 
 ## Overview
 
-This fork replaces the original bettercap + pwngrid stack with **[WiFiCapC](https://github.com/Asif-Iqbal-Gazi/WiFiCapC)** — a lean native C daemon that owns the entire Wi-Fi control plane behind a Unix-domain socket. The Python agent connects over IPC, drives policy (recon, channel hopping, attacks), and reacts to handshake events.
+This fork replaces the original bettercap + pwngrid stack with **[WiFiCapC](https://github.com/Asif-Iqbal-Gazi/WiFiCapC)** — a lean native C daemon that owns the entire Wi-Fi control plane behind a Unix-domain socket. The Python agent connects over IPC, reacts to handshake events, drives the display, and handles uploads.
 
 Machine learning, mesh networking, and the Go/Rust toolchains have been removed entirely. Behavior is rule-based, deterministic, and small enough to debug on a Pi Zero 2 W with `journalctl`.
+
+### Modes — Manual / Agent / Engine
+
+Who drives the hunt is runtime-switchable (no restart), so you can A/B the two
+attack paths on the same hardware:
+
+- **Manual 😴** — capture + upload only, no attack.
+- **Agent 🐍** — the Python agent drives recon/hop/attack (the classic path).
+- **Engine ⚡** — the WiFiCapC C daemon self-drives the whole hunt (`--auto`);
+  the agent just consumes + displays.
+
+Switch from the web UI buttons, `main.mode` in config, or `/etc/pwnagotchi/.mode`.
+Per-mode time/catches/CPU are tallied for comparison. See
+**[docs/MODES.md](docs/MODES.md)**.
 
 ## Status
 
@@ -23,8 +37,8 @@ Stable on Raspberry Pi OS 64-bit (kernel 6.12, brcmfmac + Nexmon). Wheel + sdist
 
 | Component         | Latest |
 |-------------------|--------|
-| pwnagotchi (this) | `v3.0.7` |
-| WiFiCapC daemon   | `v0.6.6` |
+| pwnagotchi (this) | `v3.1.0` |
+| WiFiCapC daemon   | `v0.8.5` |
 
 **Target hardware:** Raspberry Pi Zero 2 W (aarch64), with a Bluetooth-tethered phone for upstream and an e-paper / waveshare display attached.
 

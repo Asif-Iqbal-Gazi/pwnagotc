@@ -22,28 +22,30 @@ attack; Agent = agent drives recon/hop/attack (daemon `auto_stop`); Engine =
 daemon self-drives (`--auto`, `set_attack` on).
 
 ### M1 — modes.py strategy refactor + live 3-way switch
-- [ ] `pwnagotchi/modes.py`: Mode base + Manual/Agent/Engine (`enter/tick/leave`);
+- [x] `pwnagotchi/modes.py`: Mode base + Manual/Agent/Engine (`enter/tick/leave`);
       collapse cli.py do_manual/do_auto into one mode-driven loop. Live switch
       (reconfigure daemon via set_attack/auto_start/auto_stop + swap loop),
-      persisted via `main.mode`. Re-enable the guarded Agent-drive path.
-      Needs WiFiCapC AU7.
+      persisted via `main.mode` + `/etc/pwnagotchi/.mode`. Re-enabled the
+      Agent-drive path. Needs WiFiCapC AU7. ✅ v3.1.0
 ### M2 — config schema + docs
-- [ ] `main.mode="engine"` default; group Agent-only attack knobs; drop mesh
-      keys. New `docs/MODES.md` (architecture + A/B method). Update README.
+- [x] `main.mode="engine"` default; grouped Agent-only attack knobs; dropped
+      mesh keys. New `docs/MODES.md` (architecture + A/B method). README. ✅ v3.1.0
 ### M3 — retire relics
-- [ ] Remove pwngrid/peers/**bonding**/advertise everywhere (automata, epoch,
-      voice, agent, config) — no mesh in this build. Retire **auto-tune** and
-      **fix_services** plugins. Drop the usb0 `is_auto_mode` heuristic.
+- [x] Removed pwngrid/peers/**bonding**/advertise everywhere (automata, epoch,
+      voice, agent, log, config) — no mesh in this build. Retired **auto-tune**
+      and **fix_services** plugins. Dropped the usb0 `is_auto_mode` heuristic. ✅ v3.1.0
 ### M4 — per-mode metrics (the A/B data)
-- [ ] Accumulate time-in-mode, catches, catches/hr, avg CPU%, battery delta,
-      restarts; persist via session-stats tagged by mode.
+- [x] `modestats.py`: per-mode time, catches, catches/hr, avg CPU% persisted to
+      a throttled JSON (off the log zram); `agent.mode_stats()`. ✅ v3.1.0
+      - [ ] battery delta + restart count (needs a battery source) — deferred.
 ### M5 — gamified "hunter" display
-- [ ] Reframe UI around catches: mode badge, score (🤝 session/all-time/rate),
-      streak, live hunt-line (from attack.*/handshake.done), **A/B panel**
-      (per-mode tally on screen), milestones/toasts, hunt-themed moods.
-      Rebuild moods off the hunt, not peers/inactivity.
+- [x] Mode tag (MAN/AGT/ENG), PWND score (session/all-time), on-screen **A/B
+      panel** (`E# A# M#` per-mode tally), e-ink-safe. Moods rebuilt off the
+      hunt (epoch activity), not peers. Classic faces kept (per request). ✅ v3.1.0
+      - [ ] streak/combo + milestone toasts + richer web dashboard — deferred to
+            the "full web dashboard later" scope.
 ### M6 — web UI mode selector
-- [ ] Live Manual/Agent/Engine selector in the web UI.
+- [x] Live Manual/Agent/Engine selector in the web UI (`POST /mode/<name>`). ✅ v3.1.0
 
 ## Daemon-integration items
 
