@@ -46,6 +46,10 @@ class Handler:
         self._app.add_url_rule(
             "/restart", "restart", self.with_auth(self.restart), methods=["POST"]
         )
+        # M6: live tri-mode switch (no restart)
+        self._app.add_url_rule(
+            "/mode/<name>", "set_mode", self.with_auth(self.set_mode), methods=["POST"]
+        )
 
         # inbox
         self._app.add_url_rule("/inbox", "inbox", self.with_auth(self.inbox))
@@ -108,12 +112,31 @@ class Handler:
         return wrapper
 
     def index(self):
+        import pwnagotchi.modes as modes
         return render_template(
             "index.html",
             title=pwnagotchi.name(),
             other_mode="AUTO" if self._agent.mode == "manual" else "MANU",
+            current_mode=self._agent.mode,
+            modes=[(n, modes.MODES[n].badge) for n in ("manual", "agent", "engine")],
             fingerprint=self._agent.fingerprint(),
         )
+
+    # M6: switch Manual/Agent/Engine live, no process restart
+    def set_mode(self, name):
+        import pwnagotchi.modes as modes
+        name = (name or "").lower()
+        if name not in modes.MODES:
+            return ("unknown mode '%s'" % name, 400)
+        try:
+            ok = self._agent.set_mode(name)
+        except Exception as e:
+            logging.exception("web set_mode")
+            return (str(e), 500)
+        if request.args.get("json") or \
+                request.accept_mimetypes.best == "application/json":
+            return jsonify({"ok": bool(ok), "mode": self._agent.mode})
+        return redirect("/")
 
     def inbox(self):
         return render_template(

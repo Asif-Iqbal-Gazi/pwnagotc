@@ -6,6 +6,25 @@ block content %}
 <div class="card">
   <div class="card-body">
     <div class="control-buttons">
+      {% for mname, mbadge in modes %}
+      <form method="post" action="/mode/{{ mname }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button
+          type="submit"
+          class="btn {% if mname == current_mode %}primary{% else %}secondary{% endif %}"
+          {% if mname == current_mode %}disabled{% endif %}
+          title="Switch to {{ mname }} mode (live, no restart)"
+        >
+          {{ mbadge }} {{ mname|capitalize }}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body">
+    <div class="control-buttons">
       <form
         method="post"
         action="/shutdown"
