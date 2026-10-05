@@ -8,12 +8,14 @@ import time
 import pwnagotchi
 import pwnagotchi.plugins as plugins
 import pwnagotchi.utils as utils
+import pwnagotchi.modes as modes
 from pwnagotchi.automata import Automata
 from pwnagotchi.log import LastSession
 from pwnagotchi.ui.web.server import Server
 from pwnagotchi.wificapc import WificapcClient
 
 RECOVERY_DATA_FILE = "/root/.pwnagotchi-recovery"
+MODE_FILE = "/etc/pwnagotchi/.mode"   # persisted tri-mode selection
 
 
 def _label(name, mac):
@@ -40,6 +42,8 @@ class Agent(Automata):
         # become a passive consumer — no recon/hop/assoc/deauth driving — so
         # we don't fight the daemon's own self-driving.
         self._daemon_auto = False
+        # Tri-mode (see modes.py): the active Mode strategy (Manual/Agent/Engine).
+        self._mode = None
         self._tot_aps = 0
         self._aps_on_channel = 0
         self._supported_channels = utils.iface_channels(config["main"]["iface"])
@@ -443,27 +447,17 @@ class Agent(Automata):
         return self._daemon_auto
 
     def _on_wificapc_reconnect(self):
-        logging.info("wificapc reconnected, re-initializing...")
-        if self._detect_daemon_auto():
-            # Daemon self-drives. Re-apply our attack policy (a restarted
-            # daemon defaults attack-on, so manual must re-assert off) and
-            # re-seed our view from its table.
-            self.set_attack(self.mode != 'manual')
+        # Re-apply the current mode to the (possibly restarted) daemon — a
+        # fresh daemon defaults to self-driving+attack, so Manual/Agent must
+        # re-assert their config. Then re-seed our view (consumer modes).
+        logging.info("wificapc reconnected, re-applying mode %s ...", self.mode_name())
+        if self._mode is not None:
+            try:
+                self._mode.enter()
+            except Exception:
+                logging.exception("reconnect mode enter")
+        if self._daemon_auto:
             self._sync_from_daemon()
-            return
-        self.start_monitor_mode()
-        try:
-            hop_channels = (
-                self._config["personality"]["channels"] or self._supported_channels
-            )
-            self._wificapc.cmd("recon_start")
-            self._wificapc.cmd(
-                "hop_start",
-                channels=hop_channels,
-                interval_ms=self._config["wificapc"].get("hop_interval_ms", 250),
-            )
-        except Exception as e:
-            logging.warning("wificapc re-init after reconnect: %s", e)
 
     def set_attack(self, enabled):
         """Tell the daemon to run (auto) or hold (manual) its --auto attack.
@@ -487,17 +481,84 @@ class Agent(Automata):
         if self._daemon_auto:
             self._sync_from_daemon()   # seed from the daemon's current table
 
-    def start(self):
+    # ---- tri-mode (see modes.py) ----
+
+    def _daemon_auto_start(self):
+        try:
+            self._wificapc.cmd("auto_start")
+        except Exception as e:
+            logging.debug("wificapc auto_start: %s", e)
+
+    def _daemon_auto_stop(self):
+        try:
+            self._wificapc.cmd("auto_stop")
+        except Exception as e:
+            logging.debug("wificapc auto_stop: %s", e)
+
+    def mode_name(self):
+        return self._mode.name if self._mode else (self.mode or "manual")
+
+    def _persist_mode(self, name):
+        try:
+            with open(MODE_FILE, "w") as f:
+                f.write(name)
+        except Exception as e:
+            logging.debug("persist mode: %s", e)
+
+    def _initial_mode(self, manual_flag):
+        # persisted file > config main.mode > (--manual ? manual : engine)
+        try:
+            with open(MODE_FILE) as f:
+                m = f.read().strip().lower()
+                if m in modes.MODES:
+                    return m
+        except Exception:
+            pass
+        cfg = (self._config.get("main", {}).get("mode") or "").lower()
+        if cfg in modes.MODES:
+            return cfg
+        return "manual" if manual_flag else "engine"
+
+    def set_mode(self, name):
+        """Switch Manual/Agent/Engine live: reconfigure the daemon and swap the
+        loop strategy. Persisted so it survives a restart."""
+        name = (name or "").lower()
+        if name not in modes.MODES:
+            logging.warning("unknown mode '%s', ignoring", name)
+            return False
+        if self._mode is not None and self._mode.name == name:
+            return True
+        if self._mode is not None:
+            try:
+                self._mode.leave()
+            except Exception:
+                logging.exception("mode leave")
+        self._mode = modes.MODES[name](self)
+        self.mode = name
+        # Consumer sync (list_aps) only in Manual/Engine; Agent drives its own
+        # table from events.
+        self._daemon_auto = (name != "agent")
+        logging.info("mode -> %s %s", name, self._mode.badge)
+        try:
+            self._mode.enter()
+        except Exception:
+            logging.exception("mode enter")
+        self._persist_mode(name)
+        plugins.on("mode_changed", self, name)
+        return True
+
+    def tick_mode(self):
+        if self._mode is not None:
+            self._mode.tick()
+        else:
+            time.sleep(5)
+
+    def start(self, manual=False):
         self.set_starting()
         self.start_consumer()
-        # AU6: if the daemon drives itself, don't bring it up / drive it.
-        # Otherwise do the normal iface_set -> monitor_on -> recon_start ->
-        # hop_start bring-up.
-        if not self._daemon_auto:
-            self.start_monitor_mode()
-        self.set_attack(True)          # auto mode: attacks on
         self._load_recovery_data()
         self.start_session_fetcher()
+        self.set_mode(self._initial_mode(manual))   # configures the daemon
         self.next_epoch()
         self.set_ready()
 

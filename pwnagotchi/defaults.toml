@@ -1,6 +1,11 @@
 [main]
 name = "PwnaGotC"
 lang = "en"
+# Attack driver (tri-mode, see docs/MODES.md). Runtime-switchable; this is the
+# default/persisted choice. "manual" = capture only, no attack; "agent" = the
+# Python agent drives recon/hop/attack; "engine" = the wificapc C daemon self-
+# drives (--auto). A live switch is written to /etc/pwnagotchi/.mode.
+mode = "engine"
 iface = "wlan0mon"
 mon_start_cmd = "/usr/bin/monstart"
 mon_stop_cmd = "/usr/bin/monstop"

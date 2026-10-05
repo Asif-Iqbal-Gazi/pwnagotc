@@ -21,19 +21,11 @@ def pwnagotchi_cli():
         display.clear()
         sys.exit(0)
 
-    def do_manual_mode(agent):
-        logging.info("entering manual mode ...")
-
-        agent.mode = 'manual'
-        # Manual = no active attack, but everything else runs: the daemon keeps
-        # capturing passively, we consume its events (so handshakes get queued)
-        # and upload when internet is available. Keep it light — just the
-        # consumer + the internet monitor (NOT the full session fetcher, whose
-        # view churn conflicts with the static manual-mode screen) — and tell
-        # the daemon to hold its attack; switching to auto turns it back on.
-        agent.start_consumer()
-        agent.set_attack(False)
-        agent.start_internet_monitor()
+    def run_modes(agent):
+        # One loop: the active Mode (Manual/Agent/Engine — see modes.py) decides
+        # what each tick does. The initial mode comes from .mode / config /
+        # --manual; it can be switched live via agent.set_mode() (web UI).
+        agent.start(manual=args.do_manual)
         agent.last_session.parse(agent.view(), args.skip_session)
         if not args.skip_session:
             logging.info(
@@ -46,63 +38,8 @@ def pwnagotchi_cli():
                     agent.last_session.max_reward))
 
         while True:
-            # Never let a transient UI error (e.g. a concurrent view update)
-            # crash the process — mirror do_auto_mode's resilient loop.
             try:
-                display.on_manual_mode(agent.last_session)
-            except Exception as e:
-                logging.exception("main loop exception (%s)", e)
-            time.sleep(5)
-
-    def do_auto_mode(agent):
-        logging.info("entering auto mode ...")
-
-        agent.mode = 'auto'
-        agent.last_session.parse(agent.view(), args.skip_session)  # show stats in AUTO
-        agent.start()
-
-        while True:
-            try:
-                # AU6: when the daemon is self-driving (wificapc --auto) it owns
-                # recon/hop/attack. We must not drive it too — just let epochs
-                # tick while our event handlers + wpa-sec upload consume what it
-                # captures. Driving here would fight the daemon (double hop_start,
-                # redundant assoc/deauth).
-                if agent.daemon_auto():
-                    time.sleep(5)
-                    agent.next_epoch()
-                    continue
-
-                # recon on all channels
-                agent.recon()
-                # get nearby access points grouped by channel
-                channels = agent.get_access_points_by_channel()
-                # for each channel
-                for ch, aps in channels:
-                    time.sleep(1)
-                    agent.set_channel(ch)
-
-                    if not agent.is_stale() and agent.any_activity():
-                        logging.info("%d access points on channel %d" % (len(aps), ch))
-
-                    # for each ap on this channel
-                    for ap in aps:
-                        # send an association frame in order to get for a PMKID
-                        agent.associate(ap)
-                        # deauth all client stations in order to get a full handshake
-                        for sta in ap['clients']:
-                            agent.deauth(ap, sta)
-                            time.sleep(1)  # delay to not trigger nexmon firmware bugs
-
-                # An interesting effect of this:
-                #
-                # From Pwnagotchi's perspective, the more new access points
-                # and / or client stations nearby, the longer one epoch of
-                # its relative time will take ... basically, in Pwnagotchi's universe,
-                # Wi-Fi electromagnetic fields affect time like gravitational fields
-                # affect ours ... neat ^_^
-                agent.next_epoch()
-
+                agent.tick_mode()
             except Exception as e:
                 logging.exception("main loop exception (%s)", e)
 
@@ -221,10 +158,7 @@ def pwnagotchi_cli():
 
     signal.signal(signal.SIGUSR1, usr1_handler)
 
-    if args.do_manual:
-        do_manual_mode(agent)
-    else:
-        do_auto_mode(agent)
+    run_modes(agent)
 
 
 if __name__ == '__main__':

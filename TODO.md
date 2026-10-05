@@ -13,6 +13,38 @@ WiFiCapC features. Cross-references to WiFiCapC's own list are tagged
   the pwnagotchi-image launcher (Phase 4 — eventually retire
   `wlan0mon` if/when in-place mode switch works).
 
+## Tri-mode + gamification (M* — see docs/MODES.md)
+
+Three runtime-selectable modes — **Manual** 😴 / **Agent** 🐍 / **Engine** ⚡ —
+so the agent-driven (Python) and daemon-driven (C `--auto`) attack paths both
+exist and can be A/B'd (handshakes/hr, CPU, battery, stability). Manual = no
+attack; Agent = agent drives recon/hop/attack (daemon `auto_stop`); Engine =
+daemon self-drives (`--auto`, `set_attack` on).
+
+### M1 — modes.py strategy refactor + live 3-way switch
+- [ ] `pwnagotchi/modes.py`: Mode base + Manual/Agent/Engine (`enter/tick/leave`);
+      collapse cli.py do_manual/do_auto into one mode-driven loop. Live switch
+      (reconfigure daemon via set_attack/auto_start/auto_stop + swap loop),
+      persisted via `main.mode`. Re-enable the guarded Agent-drive path.
+      Needs WiFiCapC AU7.
+### M2 — config schema + docs
+- [ ] `main.mode="engine"` default; group Agent-only attack knobs; drop mesh
+      keys. New `docs/MODES.md` (architecture + A/B method). Update README.
+### M3 — retire relics
+- [ ] Remove pwngrid/peers/**bonding**/advertise everywhere (automata, epoch,
+      voice, agent, config) — no mesh in this build. Retire **auto-tune** and
+      **fix_services** plugins. Drop the usb0 `is_auto_mode` heuristic.
+### M4 — per-mode metrics (the A/B data)
+- [ ] Accumulate time-in-mode, catches, catches/hr, avg CPU%, battery delta,
+      restarts; persist via session-stats tagged by mode.
+### M5 — gamified "hunter" display
+- [ ] Reframe UI around catches: mode badge, score (🤝 session/all-time/rate),
+      streak, live hunt-line (from attack.*/handshake.done), **A/B panel**
+      (per-mode tally on screen), milestones/toasts, hunt-themed moods.
+      Rebuild moods off the hunt, not peers/inactivity.
+### M6 — web UI mode selector
+- [ ] Live Manual/Agent/Engine selector in the web UI.
+
 ## Daemon-integration items
 
 ### TODO-D1 — Vendor strings in the UI ✅ v3.0.13 (assoc/deauth lines)
