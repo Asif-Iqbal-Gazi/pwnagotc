@@ -95,38 +95,11 @@ class Voice:
             self._('It\'s a Wi-Fi system! I know this!'), # Jurassic park
             self._('My crime is that of curiosity ...')])
 
-    def on_new_peer(self, peer):
-        if peer.first_encounter():
-            return random.choice([
-                self._('Hello {name}! Nice to meet you.').format(name=peer.name())])
-        return random.choice([
-            self._('Yo {name}! Sup?').format(name=peer.name()),
-            self._('Hey {name} how are you doing?').format(name=peer.name()),
-            self._('Unit {name} is nearby!').format(name=peer.name())])
-
-    def on_lost_peer(self, peer):
-        return random.choice([
-            self._('Uhm ... goodbye {name}').format(name=peer.name()),
-            self._('{name} is gone ...').format(name=peer.name())])
-
     def on_miss(self, who):
         return random.choice([
             self._('Whoops ... {name} is gone.').format(name=who),
             self._('{name} missed!').format(name=who),
             self._('Missed!')])
-
-    def on_grateful(self):
-        return random.choice([
-            self._('Good friends are a blessing!'),
-            self._('I love my friends!')
-        ])
-
-    def on_lonely(self):
-        return random.choice([
-            self._('Nobody wants to play with me ...'),
-            self._('I feel so alone ...'),
-            self._('Let\'s find friends'),
-            self._('Where\'s everybody?!')])
 
     def on_napping(self, secs):
         return random.choice([

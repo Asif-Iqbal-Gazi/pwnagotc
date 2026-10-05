@@ -537,6 +537,8 @@ class Agent(Automata):
         self._mode = modes.MODES[name](self)
         self.mode = name
         self._modestats.on_enter(name)
+        self._view.set_mode(modes.tag_for(name))   # MAN/AGT/ENG on the display
+        self._refresh_ab()
         # Consumer sync (list_aps) only in Manual/Engine; Agent drives its own
         # table from events.
         self._daemon_auto = (name != "agent")
@@ -563,12 +565,27 @@ class Agent(Automata):
             d = self._epoch.data()
             self._modestats.on_epoch(self.mode, d.get("duration_secs", 0),
                                      d.get("cpu_load", 0))
+            self._refresh_ab()
         except Exception:
             logging.debug("modestats on_epoch failed", exc_info=True)
 
     def mode_stats(self):
         """Per-mode A/B summary (see modestats.ModeStats.summary)."""
         return self._modestats.summary()
+
+    def _refresh_ab(self):
+        """Push the compact per-mode catch tally to the display (M5)."""
+        try:
+            s = self._modestats.summary()
+
+            def catches(m):
+                return int(s.get(m, {}).get("catches", 0))
+
+            self._view.set_ab("E%d A%d M%d" % (catches("engine"),
+                                               catches("agent"),
+                                               catches("manual")))
+        except Exception:
+            logging.debug("ab tally refresh failed", exc_info=True)
 
     def start(self, manual=False):
         self.set_starting()

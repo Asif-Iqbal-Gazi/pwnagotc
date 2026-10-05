@@ -76,8 +76,10 @@ class View(object):
                          position=(config['ui']['faces']['position_x'], config['ui']['faces']['position_y']),
                          color=BLACK, font=fonts.Huge, png=config['ui']['faces']['png']),
 
-            # 'friend_face': Text(value=None, position=self._layout['friend_face'], font=fonts.Bold, color=BLACK),
-            'friend_name': Text(value=None, position=self._layout['friend_face'], font=fonts.BoldSmall, color=BLACK),
+            # M5: the old peer-name slot is reused for the A/B tally — a
+            # compact per-mode catch count (e.g. "E12 A7 M0") so you can
+            # compare the Engine vs Agent vs Manual hunt at a glance.
+            'ab': Text(value=None, position=self._layout['friend_name'], font=fonts.BoldSmall, color=BLACK),
 
             'name': Text(value='%s>' % 'pwnagotchi', position=self._layout['name'], color=BLACK, font=fonts.Bold),
 
@@ -174,18 +176,14 @@ class View(object):
         self.set('face', self._get_random_face(faces.AWAKE))
         self.update()
 
-    def on_manual_mode(self, last_session):
-        self.set('mode', 'MANU')
-        self.set('face', self._get_random_face(faces.SAD) if (last_session.epochs > 3 and last_session.handshakes == 0) else self._get_random_face(faces.HAPPY))
-        self.set('status', self._voice.on_last_session_data(last_session))
-        self.set('epoch', "%04d" % last_session.epochs)
-        self.set('uptime', last_session.duration)
-        self.set('channel', '-')
-        self.set('aps', "%d" % last_session.associated)
-        self.set('shakes', '%d (%s)' % (
-        last_session.handshakes, utils.total_unique_handshakes(self._config['wificapc']['handshakes'])))
-        self.set_closest_peer(last_session.last_peer, last_session.peers)
+    def set_mode(self, tag):
+        """Show the active tri-mode tag (MAN/AGT/ENG) — e-ink-safe text."""
+        self.set('mode', tag)
         self.update()
+
+    def set_ab(self, text):
+        """Update the A/B catch tally line (per-mode, e.g. 'E12 A7 M0')."""
+        self.set('ab', text)
 
     def is_normal(self):
         face = self._state.get('face')
@@ -209,57 +207,6 @@ class View(object):
     def on_normal(self):
         self.set('face', self._get_random_face(faces.AWAKE))
         self.set('status', self._voice.on_normal())
-        self.update()
-
-    def set_closest_peer(self, peer, num_total):
-        if peer is None:
-            self.set('friend_face', None)
-            self.set('friend_name', None)
-        else:
-            # ref. https://www.metageek.com/training/resources/understanding-rssi-2.html
-            if peer.rssi >= -67:
-                num_bars = 4
-            elif peer.rssi >= -70:
-                num_bars = 3
-            elif peer.rssi >= -80:
-                num_bars = 2
-            else:
-                num_bars = 1
-
-            name = '▌' * num_bars
-            name += '│' * (4 - num_bars)
-            name += ' %s %d (%d)' % (peer.name(), peer.pwnd_run(), peer.pwnd_total())
-
-            if num_total > 1:
-                if num_total > 9000:
-                    name += ' of over 9000'
-                else:
-                    name += ' of %d' % num_total
-
-            self.set('friend_face', peer.face())
-            self.set('friend_name', name)
-        self.update()
-
-    def on_new_peer(self, peer):
-        face = ''
-        # first time they met, neutral mood
-        if peer.first_encounter():
-            face = self._get_random_face(random.choice((faces.AWAKE, faces.COOL)))
-        # a good friend, positive expression
-        elif peer.is_good_friend(self._config):
-            face = self._get_random_face(random.choice((faces.MOTIVATED, faces.FRIEND, faces.HAPPY)))
-        # normal friend, neutral-positive
-        else:
-            face = self._get_random_face(random.choice((faces.EXCITED, faces.HAPPY, faces.SMART)))
-
-        self.set('face', face)
-        self.set('status', self._voice.on_new_peer(peer))
-        self.update()
-        time.sleep(3)
-
-    def on_lost_peer(self, peer):
-        self.set('face', self._get_random_face(faces.LONELY))
-        self.set('status', self._voice.on_lost_peer(peer))
         self.update()
 
     def on_free_channel(self, channel):
@@ -351,16 +298,6 @@ class View(object):
     def on_miss(self, who):
         self.set('face', self._get_random_face(faces.SAD))
         self.set('status', self._voice.on_miss(who))
-        self.update()
-
-    def on_grateful(self):
-        self.set('face', self._get_random_face(faces.GRATEFUL))
-        self.set('status', self._voice.on_grateful())
-        self.update()
-
-    def on_lonely(self):
-        self.set('face', self._get_random_face(faces.LONELY))
-        self.set('status', self._voice.on_lonely())
         self.update()
 
     def on_handshakes(self, new_shakes):

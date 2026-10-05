@@ -17,7 +17,8 @@ import time
 
 class Mode:
     name = "base"
-    badge = "?"
+    badge = "?"   # emoji, for logs + the web UI
+    tag = "?"     # 3-char ASCII, for the e-ink/LCD display (no emoji there)
 
     def __init__(self, agent):
         self.agent = agent
@@ -35,6 +36,7 @@ class Mode:
 class ManualMode(Mode):
     name = "manual"
     badge = "\U0001F634"  # 😴
+    tag = "MAN"
 
     def enter(self):
         # Daemon keeps hopping + capturing so passive handshakes still land;
@@ -50,6 +52,7 @@ class ManualMode(Mode):
 class EngineMode(Mode):
     name = "engine"
     badge = "⚡"  # ⚡
+    tag = "ENG"
 
     def enter(self):
         self.agent._daemon_auto_start()
@@ -65,6 +68,7 @@ class EngineMode(Mode):
 class AgentMode(Mode):
     name = "agent"
     badge = "\U0001F40D"  # 🐍
+    tag = "AGT"
 
     def enter(self):
         # Take channel control away from the daemon so we don't fight it.
@@ -103,3 +107,8 @@ MODES = {
 def badge_for(name):
     cls = MODES.get(name)
     return cls.badge if cls else "?"
+
+
+def tag_for(name):
+    cls = MODES.get(name)
+    return cls.tag if cls else "?"
