@@ -9,7 +9,10 @@ echo "    Here are some basic things you need to know to raise me properly!"
 echo
 echo "    If you want to change my configuration, use /etc/pwnagotchi/config.toml"
 echo "    All plugin config files are located in /etc/pwnagotchi/conf.d/"
-echo "    Read the readme if you want to use gdrivesync plugin!!"
+echo
+echo "    I hunt in one of three modes - Manual / Agent / Engine. Switch live"
+echo "    from the web UI buttons, main.mode in config, or /etc/pwnagotchi/.mode"
+echo "    (see docs/MODES.md)."
 echo
 echo "    All the configuration options can be found in /etc/pwnagotchi/default.toml,"
 echo "    but don't change this file because I will recreate it every time I'm restarted!"
@@ -29,5 +32,3 @@ echo "    sudo systemctl status pwnagotchi"
 echo
 echo "    You can restart me using"
 echo "    pwnkill"
-echo
-echo "    You can learn more about me at https://pwnagotchi.org/"
