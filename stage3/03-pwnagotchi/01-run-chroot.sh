@@ -1,26 +1,17 @@
 #!/bin/bash -e
 
-PWNAGOTCHI_TAG=v3.1.1
+# Install pwnagotchi from the source staged by 00-run.sh (the exact checkout the
+# image is built from), NOT a re-cloned tag. This removes the old PWNAGOTCHI_TAG
+# footgun where a stale pin shipped an old agent inside a fresh image.
+SRC=/opt/pwnagotchi-src
 
-echo -e "\e[32m### Building and installing pwnagotchi ${PWNAGOTCHI_TAG} ###\e[0m"
-cd /opt
-
-# Retry the clone — chroot networks blip on us regularly. A one-shot
-# git failure shouldn't kill the whole image build.
-n=0
-until git clone --depth 1 --branch "${PWNAGOTCHI_TAG}" \
-        https://github.com/Asif-Iqbal-Gazi/pwnagotc.git pwnagotchi; do
-  n=$((n+1))
-  if [ $n -ge 3 ]; then
-    echo "pwnagotchi: git clone failed after 3 attempts" >&2
-    exit 1
-  fi
-  echo "pwnagotchi: clone attempt $n failed, retrying in 5s..." >&2
-  rm -rf pwnagotchi
-  sleep 5
-done
-
-cd pwnagotchi/
+if [ ! -f "${SRC}/pwnagotchi/_version.py" ]; then
+  echo "pwnagotchi: staged source not found at ${SRC}" >&2
+  exit 1
+fi
+VER="$(cut -d"'" -f2 < "${SRC}/pwnagotchi/_version.py")"
+echo -e "\e[32m### Installing pwnagotchi ${VER} from ${SRC} ###\e[0m"
+cd "${SRC}"
 
 if [ -d /opt/.pwn ]; then
     rm -r /opt/.pwn
@@ -47,4 +38,4 @@ command -v pwnagotchi >/dev/null 2>&1 || {
   exit 1
 }
 
-rm -r /opt/pwnagotchi
+rm -rf /opt/pwnagotchi-src

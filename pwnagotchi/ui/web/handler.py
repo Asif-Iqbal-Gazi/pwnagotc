@@ -113,12 +113,33 @@ class Handler:
 
     def index(self):
         import pwnagotchi.modes as modes
+        stats = self._agent.mode_stats()
+
+        def row(mode):
+            s = stats.get(mode, {})
+            secs = s.get("secs", 0)
+            h, m = int(secs // 3600), int((secs % 3600) // 60)
+            bat = s.get("bat_drain_per_hr", 0)
+            return {
+                "mode": mode,
+                "badge": modes.MODES[mode].badge,
+                "active": mode == self._agent.mode,
+                "time": "%dh%02dm" % (h, m),
+                "catches": s.get("catches", 0),
+                "rate": "%.1f" % s.get("rate_per_hr", 0),
+                "cpu": "%.0f%%" % s.get("avg_cpu_pct", 0),
+                "batt": ("%.1f%%/h" % bat) if bat > 0 else "—",
+                "boots": s.get("boots", 0),
+            }
+
         return render_template(
             "index.html",
             title=pwnagotchi.name(),
             other_mode="AUTO" if self._agent.mode == "manual" else "MANU",
             current_mode=self._agent.mode,
             modes=[(n, modes.MODES[n].badge) for n in ("manual", "agent", "engine")],
+            mode_rows=[row(n) for n in ("manual", "agent", "engine")],
+            best_session=self._agent.best_session(),
             fingerprint=self._agent.fingerprint(),
         )
 

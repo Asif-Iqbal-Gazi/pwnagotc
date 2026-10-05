@@ -81,6 +81,11 @@ class Agent(Automata):
         # M4: per-mode A/B metrics (Manual/Agent/Engine)
         self._modestats = ModeStats(
             self._config["main"].get("mode_stats_file", modestats_default_path))
+        # M5 gamification: catches this session / this epoch, and the current
+        # hot-streak (consecutive epochs that produced a catch).
+        self._session_catches = 0
+        self._epoch_catches = 0
+        self._streak = 0
 
         hs_dir = config["wificapc"]["handshakes"]
         os.makedirs(hs_dir, exist_ok=True)
@@ -559,31 +564,54 @@ class Agent(Automata):
 
     def next_epoch(self):
         # Automata advances the epoch + moods; we additionally credit this
-        # epoch's wall-clock time + CPU load to the active mode (M4 A/B).
+        # epoch's wall-clock time + CPU load (+ battery drain) to the active
+        # mode (M4 A/B), and roll the hot-streak (M5).
         super().next_epoch()
         try:
             d = self._epoch.data()
             self._modestats.on_epoch(self.mode, d.get("duration_secs", 0),
-                                     d.get("cpu_load", 0))
+                                     d.get("cpu_load", 0), self._battery_pct())
+            # a streak is consecutive epochs that each caught something
+            self._streak = (self._streak + 1) if self._epoch_catches > 0 else 0
+            self._epoch_catches = 0
             self._refresh_ab()
         except Exception:
             logging.debug("modestats on_epoch failed", exc_info=True)
+
+    def _battery_pct(self):
+        """Current battery %, read hardware-agnostically from whatever battery
+        plugin publishes the 'bat' UI element (e.g. pisugarx -> '85%').
+        Returns None when no battery / not ready (so it never pollutes stats)."""
+        try:
+            el = self._view.get("bat")
+            raw = getattr(el, "value", el)
+            pct = int(str(raw).strip().rstrip("%"))
+            return pct if pct > 0 else None
+        except Exception:
+            return None
 
     def mode_stats(self):
         """Per-mode A/B summary (see modestats.ModeStats.summary)."""
         return self._modestats.summary()
 
+    def best_session(self):
+        """All-time single-session catch record (gamification)."""
+        return self._modestats.best_session()
+
     def _refresh_ab(self):
-        """Push the compact per-mode catch tally to the display (M5)."""
+        """Push the compact per-mode catch tally (+ hot-streak) to the display."""
         try:
             s = self._modestats.summary()
 
             def catches(m):
                 return int(s.get(m, {}).get("catches", 0))
 
-            self._view.set_ab("E%d A%d M%d" % (catches("engine"),
-                                               catches("agent"),
-                                               catches("manual")))
+            txt = "E%d A%d M%d" % (catches("engine"),
+                                   catches("agent"),
+                                   catches("manual"))
+            if self._streak >= 2:
+                txt += " x%d" % self._streak   # on a roll
+            self._view.set_ab(txt)
         except Exception:
             logging.debug("ab tally refresh failed", exc_info=True)
 
@@ -593,6 +621,7 @@ class Agent(Automata):
         self._load_recovery_data()
         self.start_session_fetcher()
         self.set_mode(self._initial_mode(manual))   # configures the daemon
+        self._modestats.on_boot(self.mode)          # stability signal (M4)
         self.next_epoch()
         self.set_ready()
 
@@ -715,9 +744,14 @@ class Agent(Automata):
             self._view.set("sta", "%d (%d)" % (stas_on_channel, tot_stas))
 
     def _update_handshakes(self, new_shakes=0):
+        new_record = False
         if new_shakes > 0:
             self._epoch.track(handshake=True, inc=new_shakes)
             self._modestats.on_catch(self.mode, new_shakes)  # M4: credit this mode
+            # M5 gamification: session tally + hot-streak + all-time record
+            self._session_catches += new_shakes
+            self._epoch_catches += new_shakes
+            new_record = self._modestats.record_session(self._session_catches)
 
         tot = utils.total_unique_handshakes(self._config["wificapc"]["handshakes"])
         txt = "%d (%d)" % (len(self._handshakes), tot)
@@ -725,7 +759,10 @@ class Agent(Automata):
             txt += " [%s]" % self._last_pwnd
         self._view.set("shakes", txt)
         if new_shakes > 0:
-            self._view.on_handshakes(new_shakes)
+            if new_record:
+                self._view.on_new_record(self._session_catches)
+            else:
+                self._view.on_handshakes(new_shakes)
 
     # ---- internet reachability probe ----
 

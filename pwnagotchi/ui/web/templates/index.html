@@ -24,6 +24,30 @@ block content %}
 </div>
 <div class="card">
   <div class="card-body">
+    <h3 style="margin:0 0 .5em 0">A/B — mode comparison</h3>
+    <table style="width:100%;border-collapse:collapse;text-align:right">
+      <thead>
+        <tr style="border-bottom:1px solid currentColor">
+          <th style="text-align:left">Mode</th>
+          <th>Time</th><th>Catches</th><th>/hr</th>
+          <th>CPU</th><th>Batt</th><th>Boots</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in mode_rows %}
+        <tr {% if r.active %}style="font-weight:bold"{% endif %}>
+          <td style="text-align:left">{{ r.badge }} {{ r.mode|capitalize }}{% if r.active %} •{% endif %}</td>
+          <td>{{ r.time }}</td><td>{{ r.catches }}</td><td>{{ r.rate }}</td>
+          <td>{{ r.cpu }}</td><td>{{ r.batt }}</td><td>{{ r.boots }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="margin:.5em 0 0 0;opacity:.8">🏆 Best session: {{ best_session }} catches</p>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body">
     <div class="control-buttons">
       <form
         method="post"
