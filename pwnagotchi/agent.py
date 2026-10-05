@@ -11,6 +11,7 @@ import pwnagotchi.utils as utils
 import pwnagotchi.modes as modes
 from pwnagotchi.automata import Automata
 from pwnagotchi.log import LastSession
+from pwnagotchi.modestats import ModeStats, DEFAULT_PATH as modestats_default_path
 from pwnagotchi.ui.web.server import Server
 from pwnagotchi.wificapc import WificapcClient
 
@@ -77,6 +78,9 @@ class Agent(Automata):
         self._handshakes = {}
         self.last_session = LastSession(self._config)
         self.mode = "auto"
+        # M4: per-mode A/B metrics (Manual/Agent/Engine)
+        self._modestats = ModeStats(
+            self._config["main"].get("mode_stats_file", modestats_default_path))
 
         hs_dir = config["wificapc"]["handshakes"]
         os.makedirs(hs_dir, exist_ok=True)
@@ -532,6 +536,7 @@ class Agent(Automata):
                 logging.exception("mode leave")
         self._mode = modes.MODES[name](self)
         self.mode = name
+        self._modestats.on_enter(name)
         # Consumer sync (list_aps) only in Manual/Engine; Agent drives its own
         # table from events.
         self._daemon_auto = (name != "agent")
@@ -549,6 +554,21 @@ class Agent(Automata):
             self._mode.tick()
         else:
             time.sleep(5)
+
+    def next_epoch(self):
+        # Automata advances the epoch + moods; we additionally credit this
+        # epoch's wall-clock time + CPU load to the active mode (M4 A/B).
+        super().next_epoch()
+        try:
+            d = self._epoch.data()
+            self._modestats.on_epoch(self.mode, d.get("duration_secs", 0),
+                                     d.get("cpu_load", 0))
+        except Exception:
+            logging.debug("modestats on_epoch failed", exc_info=True)
+
+    def mode_stats(self):
+        """Per-mode A/B summary (see modestats.ModeStats.summary)."""
+        return self._modestats.summary()
 
     def start(self, manual=False):
         self.set_starting()
@@ -680,6 +700,7 @@ class Agent(Automata):
     def _update_handshakes(self, new_shakes=0):
         if new_shakes > 0:
             self._epoch.track(handshake=True, inc=new_shakes)
+            self._modestats.on_catch(self.mode, new_shakes)  # M4: credit this mode
 
         tot = utils.total_unique_handshakes(self._config["wificapc"]["handshakes"])
         txt = "%d (%d)" % (len(self._handshakes), tot)
