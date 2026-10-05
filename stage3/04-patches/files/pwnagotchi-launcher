@@ -9,8 +9,7 @@ if is_crypted_mode; then
   done
 fi
 
-if is_auto_mode; then
-  /opt/.pwn/bin/pwnagotchi
-else
-  /opt/.pwn/bin/pwnagotchi --manual
-fi
+# Mode (Manual/Agent/Engine) is decided at runtime by the agent itself from
+# /etc/pwnagotchi/.mode then config main.mode (see pwnagotchi/modes.py) — no
+# more usb0 guessing. Just launch; the agent picks up where it left off.
+/opt/.pwn/bin/pwnagotchi

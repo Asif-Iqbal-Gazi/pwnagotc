@@ -31,57 +31,22 @@ class Automata(object):
     def set_ready(self):
         plugins.on('ready', self)
 
-    def in_good_mood(self):
-        return self._has_support_network_for(1.0)
-
-    def _has_support_network_for(self, factor):
-        bond_factor = self._config['personality']['bond_encounters_factor']
-        total_encounters = sum(peer.encounters for _, peer in self._peers.items())
-        support_factor = total_encounters / bond_factor
-        return support_factor >= factor
-
-    # triggered when it's a sad/bad day, but you have good friends around ^_^
-    def set_grateful(self):
-        self._view.on_grateful()
-        plugins.on('grateful', self)
-
-    def set_lonely(self):
-        if not self._has_support_network_for(1.0):
-            logging.info("unit is lonely")
-            self._view.on_lonely()
-            plugins.on('lonely', self)
-        else:
-            logging.info("unit is grateful instead of lonely")
-            self.set_grateful()
-
+    # Moods are driven purely by the hunt now (epoch activity: catches +
+    # attacks), not by a peer/bond mesh — pwngrid was removed.
     def set_bored(self):
-        factor = self._epoch.inactive_for / self._config['personality']['bored_num_epochs']
-        if not self._has_support_network_for(factor):
-            logging.warning("%d epochs with no activity -> bored", self._epoch.inactive_for)
-            self._view.on_bored()
-            plugins.on('bored', self)
-        else:
-            logging.info("unit is grateful instead of bored")
-            self.set_grateful()
+        logging.warning("%d epochs with no activity -> bored", self._epoch.inactive_for)
+        self._view.on_bored()
+        plugins.on('bored', self)
 
     def set_sad(self):
-        factor = self._epoch.inactive_for / self._config['personality']['sad_num_epochs']
-        if not self._has_support_network_for(factor):
-            logging.warning("%d epochs with no activity -> sad", self._epoch.inactive_for)
-            self._view.on_sad()
-            plugins.on('sad', self)
-        else:
-            logging.info("unit is grateful instead of sad")
-            self.set_grateful()
+        logging.warning("%d epochs with no activity -> sad", self._epoch.inactive_for)
+        self._view.on_sad()
+        plugins.on('sad', self)
 
     def set_angry(self, factor):
-        if not self._has_support_network_for(factor):
-            logging.warning("%d epochs with no activity -> angry", self._epoch.inactive_for)
-            self._view.on_angry()
-            plugins.on('angry', self)
-        else:
-            logging.info("unit is grateful instead of angry")
-            self.set_grateful()
+        logging.warning("%d epochs with no activity -> angry", self._epoch.inactive_for)
+        self._view.on_angry()
+        plugins.on('angry', self)
 
     def set_excited(self):
         logging.warning("%d epochs with activity -> excited", self._epoch.active_for)
@@ -111,14 +76,14 @@ class Automata(object):
 
         self._epoch.next()
 
-        # after X misses during an epoch, set the status to lonely or angry
+        # after X misses during an epoch, set the status to bored or angry
         if was_stale:
             factor = did_miss / self._config['personality']['max_misses_for_recon']
             if factor >= 2.0:
                 self.set_angry(factor)
             else:
-                logging.warning("agent missed %d interactions -> lonely", did_miss)
-                self.set_lonely()
+                logging.warning("agent missed %d interactions -> bored", did_miss)
+                self.set_bored()
         # after X times being bored, the status is set to sad or angry
         elif self._epoch.sad_for:
             factor = self._epoch.inactive_for / self._config['personality']['sad_num_epochs']
@@ -132,8 +97,6 @@ class Automata(object):
         # after X times being active, the status is set to happy / excited
         elif self._epoch.active_for >= self._config['personality']['excited_num_epochs']:
             self.set_excited()
-        elif self._epoch.active_for >= 5 and self._has_support_network_for(5.0):
-            self.set_grateful()
 
         plugins.on('epoch', self, self._epoch.epoch - 1, self._epoch.data())
         if self._epoch.blind_for >= self._config['main']['mon_max_blind_epochs']:

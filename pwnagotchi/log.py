@@ -39,9 +39,6 @@ class Peer:
     def first_encounter(self):
         return self.encounters == 1
 
-    def is_good_friend(self, config):
-        return self.encounters >= config['personality']['bond_encounters_factor']
-
     def full_name(self):
         return "%s@%s" % (self.name(), self.identity())
 

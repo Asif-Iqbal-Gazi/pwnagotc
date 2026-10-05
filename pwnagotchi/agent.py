@@ -72,9 +72,6 @@ class Agent(Automata):
         self._probe_wakeup = threading.Event()
         self._internet_monitor_started = False
 
-        # Empty peers dict kept for automata mood compatibility (no mesh)
-        self._peers = {}
-
         self._last_pwnd = None
         self._history = {}
         self._handshakes = {}
@@ -249,7 +246,7 @@ class Agent(Automata):
         aps.sort(key=lambda a: a["channel"])
         self._access_points = aps
         plugins.on("wifi_update", self, aps)
-        self._epoch.observe(aps, [])
+        self._epoch.observe(aps)
 
     def _sync_from_daemon(self):
         """Consumer mode (daemon --auto owns recon): rebuild our AP/STA view
@@ -604,7 +601,7 @@ class Agent(Automata):
     def set_access_points(self, aps):
         self._access_points = aps
         plugins.on("wifi_update", self, aps)
-        self._epoch.observe(aps, [])
+        self._epoch.observe(aps)
         return self._access_points
 
     def get_access_points(self):
