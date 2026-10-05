@@ -301,6 +301,49 @@ class Agent(Automata):
         self._wificapc.on("sta.new", self._on_sta_new)
         self._wificapc.on("sta.lost", self._on_sta_lost)
         self._wificapc.on("handshake.done", self._on_handshake_done)
+        # AU: surface the daemon's --auto attacks in the UI (it attacks now,
+        # not us). These drive the same view/mood/plugin hooks the old
+        # agent-driven associate()/deauth() did.
+        self._wificapc.on("attack.assoc", self._on_attack_assoc)
+        self._wificapc.on("attack.deauth", self._on_attack_deauth)
+
+    def _on_attack_assoc(self, event, data):
+        bssid = (data.get("ap_bssid") or "").lower()
+        if not bssid:
+            return
+        ap = {
+            "mac": bssid,
+            "hostname": data.get("ssid", ""),
+            "vendor": data.get("vendor", ""),
+            "channel": data.get("channel", 0),
+            "rssi": 0,
+            "clients": [],
+        }
+        logging.info("associating to %s (ch %d)",
+                     _label(ap["hostname"] or ap["vendor"], bssid), ap["channel"])
+        try:
+            self._view.on_assoc(ap)
+        except Exception:
+            pass
+        self._epoch.track(assoc=True)
+        plugins.on("association", self, ap)
+
+    def _on_attack_deauth(self, event, data):
+        mac = (data.get("sta_mac") or "").lower()
+        if not mac:
+            return
+        bssid = (data.get("ap_bssid") or "").lower()
+        ap = {"mac": bssid, "hostname": "", "channel": data.get("channel", 0),
+              "rssi": 0, "clients": []}
+        sta = {"mac": mac, "vendor": data.get("vendor", "")}
+        logging.info("deauthing %s (ch %d)",
+                     _label(sta.get("vendor", ""), mac), ap["channel"])
+        try:
+            self._view.on_deauth(sta)
+        except Exception:
+            pass
+        self._epoch.track(deauth=True)
+        plugins.on("deauthentication", self, ap, sta)
 
     def start_monitor_mode(self):
         cfg = self._config["wificapc"]
