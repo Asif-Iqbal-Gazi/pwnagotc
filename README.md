@@ -37,7 +37,7 @@ Stable on Raspberry Pi OS 64-bit (kernel 6.12, brcmfmac + Nexmon). Wheel + sdist
 
 | Component         | Latest |
 |-------------------|--------|
-| pwnagotchi (this) | `v3.1.0` |
+| pwnagotchi (this) | `v3.1.1` |
 | WiFiCapC daemon   | `v0.8.5` |
 
 **Target hardware:** Raspberry Pi Zero 2 W (aarch64), with a Bluetooth-tethered phone for upstream and an e-paper / waveshare display attached.
