@@ -552,6 +552,16 @@ class Agent(Automata):
             self._mode.enter()
         except Exception:
             logging.exception("mode enter")
+        # A: ap-less / rogue-AP M2 attack — mode-independent, re-asserted on each
+        # mode set so it survives switches/reconnects. OFF unless [wificapc]
+        # apless=true (opt-in; the loudest attack). Best-effort for older daemons.
+        try:
+            apless = bool(self._config["wificapc"].get("apless", False))
+            self._wificapc.cmd("set_apless", enabled=int(apless))
+            logging.info("wificapc apless (rogue-AP M2 attack): %s",
+                         "ON" if apless else "off")
+        except Exception:
+            logging.debug("wificapc set_apless failed", exc_info=True)
         self._persist_mode(name)
         plugins.on("mode_changed", self, name)
         return True
