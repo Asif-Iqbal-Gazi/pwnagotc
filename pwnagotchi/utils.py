@@ -534,7 +534,11 @@ def secs_to_hhmmss(secs):
 
 
 def total_unique_handshakes(path):
-    expr = os.path.join(path, "*.pcap")
+    # Count the .22000 hashcat files — the canonical crackable artifact, one
+    # per captured pair. We count these (not *.pcap) because PMKID-only and
+    # restored captures have a .22000 but may lack a sibling .pcap, which made
+    # the PWND total undercount and appear stuck.
+    expr = os.path.join(path, "*.22000")
     return len(glob.glob(expr))
 
 

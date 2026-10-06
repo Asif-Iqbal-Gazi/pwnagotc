@@ -50,7 +50,12 @@ class LastSession(object):
     EPOCH_PARSER = re.compile(r'^.+\[epoch (\d+)] (.+)')
     EPOCH_DATA_PARSER = re.compile(r'([a-z_]+)=(\S+)')
     TRAINING_TOKEN = ' training epoch '
-    START_TOKEN = 'connecting to http'
+    # Marks the start of a session. The old 'connecting to http' was logged by
+    # the removed bettercap stack and never appears now, so parse() used to read
+    # the entire log every boot. 'mode -> ' is logged once at each session start
+    # (set_mode); with parse() running before the agent starts (cli.run_modes),
+    # the most recent one bounds the read to the previous session.
+    START_TOKEN = 'mode -> '
     DEAUTH_TOKEN = 'deauthing '
     ASSOC_TOKEN = 'sending association frame to '
     HANDSHAKE_TOKEN = '!!! captured new handshake '

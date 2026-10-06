@@ -25,7 +25,9 @@ def pwnagotchi_cli():
         # One loop: the active Mode (Manual/Agent/Engine — see modes.py) decides
         # what each tick does. The initial mode comes from .mode / config /
         # --manual; it can be switched live via agent.set_mode() (web UI).
-        agent.start(manual=args.do_manual)
+        # Parse the previous session BEFORE starting this one, so the log still
+        # ends at the prior session and START_TOKEN ('mode -> ', written by
+        # start()) bounds the read to one session instead of the whole log.
         agent.last_session.parse(agent.view(), args.skip_session)
         if not args.skip_session:
             logging.info(
@@ -36,6 +38,8 @@ def pwnagotchi_cli():
                     agent.last_session.avg_reward,
                     agent.last_session.min_reward,
                     agent.last_session.max_reward))
+
+        agent.start(manual=args.do_manual)
 
         while True:
             try:
