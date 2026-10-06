@@ -9,4 +9,8 @@ source /usr/bin/pwnlib
 reload_brcm
 start_monitor_interface
 
-exec /usr/local/bin/wificapc --auto -i wlan0
+# -H is explicit now: wificapc's default handshake dir is neutral (CWD-relative)
+# since v0.8.7 — the engine no longer assumes pwnagotchi. The agent also sets
+# this over IPC (set_handshake_dir), but passing it here covers the autostart
+# window before the agent connects.
+exec /usr/local/bin/wificapc --auto -i wlan0 -H /etc/pwnagotchi/handshakes
